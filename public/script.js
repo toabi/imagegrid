@@ -5,11 +5,13 @@ const downloadBtn = document.getElementById('downloadBtn');
 
 let images = [];
 let imagePositions = [];
-let displayGridWidth = 200; // Will be updated based on actual image sizes
-let displayGridHeight = 200; // Will be updated based on actual image sizes
+let displayGridWidth = 200;
+let displayGridHeight = 200;
 let draggedImageIndex = null;
 let gridCols, gridRows;
 let maxCanvasWidth, maxCanvasHeight;
+
+const POSITION_THRESHOLD = 1; // 1 pixel threshold
 
 fileInput.addEventListener('change', handleFileSelect);
 downloadBtn.addEventListener('click', downloadImage);
@@ -63,9 +65,8 @@ function handleFileSelect(event) {
 
 function calculateMaxCanvasSize() {
     maxCanvasWidth = window.innerWidth * 0.9;
-    maxCanvasHeight = window.innerHeight * 0.9;
+    maxCanvasHeight = window.innerHeight * 0.8;
 }
-
 
 function updateCanvasSize() {
     calculateMaxCanvasSize();
@@ -81,10 +82,9 @@ function updateCanvasSize() {
     let gridWidth = maxWidth * gridCols;
     let gridHeight = maxHeight * gridRows;
 
-    // Calculate the scaling factor to fit within the maximum canvas size
     const scaleX = maxCanvasWidth / gridWidth;
     const scaleY = maxCanvasHeight / gridHeight;
-    const scale = Math.min(scaleX, scaleY, 1); // Don't scale up if images are smaller
+    const scale = Math.min(scaleX, scaleY, 1);
 
     displayGridWidth = maxWidth * scale;
     displayGridHeight = maxHeight * scale;
@@ -93,12 +93,14 @@ function updateCanvasSize() {
     canvas.height = displayGridHeight * gridRows;
 }
 
-
 function repositionImages() {
     imagePositions = images.map((img, index) => {
         const col = index % gridCols;
         const row = Math.floor(index / gridCols);
-        return { x: col * displayGridWidth, y: row * displayGridHeight };
+        return {
+            x: col * displayGridWidth,
+            y: row * displayGridHeight
+        };
     });
 }
 
@@ -154,7 +156,6 @@ function drawImages() {
     }
 }
 
-// Add an event listener for window resize
 window.addEventListener('resize', () => {
     if (images.length > 0) {
         updateCanvasSize();
@@ -177,13 +178,19 @@ function drawImageWithAspectRatio(img, x, y, maxWidth, maxHeight) {
     ctx.drawImage(img, x + offsetX, y + offsetY, newWidth, newHeight);
 }
 
-
 function enableDragAndDrop() {
     let offsetX = 0;
     let offsetY = 0;
 
-    canvas.addEventListener('mousedown', (e) => {
-        const { offsetX: x, offsetY: y } = e;
+    function handleStart(e) {
+        e.preventDefault();
+        const touch = e.touches ? e.touches[0] : e;
+        const rect = canvas.getBoundingClientRect();
+        const x = touch.clientX - rect.left;
+        const y = touch.clientY - rect.top;
+
+        console.log('Touch start:', x, y); // Add this line for debugging
+
         draggedImageIndex = imagePositions
             .map((pos, index) => ({ pos, index }))
             .filter(({ pos }) => {
@@ -205,26 +212,44 @@ function enableDragAndDrop() {
             offsetX = x - pos.x;
             offsetY = y - pos.y;
         }
-    });
+    }
 
-    canvas.addEventListener('mousemove', (e) => {
+    function handleMove(e) {
         if (draggedImageIndex !== null) {
-            const { offsetX: x, offsetY: y } = e;
+            e.preventDefault();
+            const touch = e.touches ? e.touches[0] : e;
+            const rect = canvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+
             const pos = imagePositions[draggedImageIndex];
             pos.x = x - offsetX;
             pos.y = y - offsetY;
             drawImages();
         }
-    });
+    }
 
-    canvas.addEventListener('mouseup', () => {
+    function handleEnd() {
         if (draggedImageIndex !== null) {
             snapToGrid(draggedImageIndex);
             draggedImageIndex = null;
             repositionImages();
             drawImages();
         }
-    });
+    }
+
+    canvas.addEventListener('mousedown', handleStart);
+    canvas.addEventListener('mousemove', handleMove);
+    canvas.addEventListener('mouseup', handleEnd);
+
+    canvas.addEventListener('touchstart', handleStart);
+    canvas.addEventListener('touchmove', handleMove);
+    canvas.addEventListener('touchend', handleEnd);
+}
+
+function arePositionsEqual(pos1, pos2) {
+    return Math.abs(pos1.x - pos2.x) < POSITION_THRESHOLD &&
+        Math.abs(pos1.y - pos2.y) < POSITION_THRESHOLD;
 }
 
 function snapToGrid(index) {
@@ -232,27 +257,27 @@ function snapToGrid(index) {
     const targetX = Math.round(pos.x / displayGridWidth) * displayGridWidth;
     const targetY = Math.round(pos.y / displayGridHeight) * displayGridHeight;
 
-    // Ensure the image stays within the canvas bounds
     pos.x = Math.max(0, Math.min(targetX, canvas.width - displayGridWidth));
     pos.y = Math.max(0, Math.min(targetY, canvas.height - displayGridHeight));
 
-    const targetIndex = imagePositions.findIndex((p, i) => i !== index && p.x === pos.x && p.y === pos.y);
+    const targetIndex = imagePositions.findIndex((p, i) =>
+        i !== index &&
+        Math.abs(p.x - pos.x) < displayGridWidth / 2 &&
+        Math.abs(p.y - pos.y) < displayGridHeight / 2
+    );
 
     if (targetIndex >= 0) {
-        // Swap positions
         const tempPos = { ...imagePositions[targetIndex] };
         imagePositions[targetIndex] = { ...imagePositions[index] };
         imagePositions[index] = tempPos;
 
-        // Swap images
         const tempImg = images[targetIndex];
         images[targetIndex] = images[index];
         images[index] = tempImg;
-
-        // Redraw images immediately after swapping
-        repositionImages();
-        drawImages();
     }
+
+    repositionImages();
+    drawImages();
 }
 
 function downloadImage() {
@@ -270,7 +295,6 @@ function downloadImage() {
     originalCanvas.width = maxWidth * gridCols;
     originalCanvas.height = maxHeight * gridRows;
 
-    // Draw each image in its original size on the new canvas
     images.forEach((img, index) => {
         const pos = imagePositions[index];
         const x = (pos.x / displayGridWidth) * maxWidth;
@@ -278,7 +302,6 @@ function downloadImage() {
         originalCtx.drawImage(img, x, y);
     });
 
-    // Download the combined image
     const link = document.createElement('a');
     link.download = 'combined-image.png';
     link.href = originalCanvas.toDataURL();
