@@ -7,6 +7,7 @@ let images = [];
 let imagePositions = [];
 let displayGridWidth = 200; // Default width of each grid cell for display purposes
 let displayGridHeight = 200; // Default height of each grid cell for display purposes
+let draggedImageIndex = null; // Index of the image being dragged
 
 fileInput.addEventListener('change', handleFileSelect);
 downloadBtn.addEventListener('click', downloadImage);
@@ -96,9 +97,15 @@ function handleDrop(e) {
 function drawImages() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     images.forEach((img, index) => {
-        const pos = imagePositions[index];
-        drawImageWithAspectRatio(img, pos.x, pos.y, displayGridWidth, displayGridHeight);
+        if (index !== draggedImageIndex) {
+            const pos = imagePositions[index];
+            drawImageWithAspectRatio(img, pos.x, pos.y, displayGridWidth, displayGridHeight);
+        }
     });
+    if (draggedImageIndex !== null) {
+        const pos = imagePositions[draggedImageIndex];
+        drawImageWithAspectRatio(images[draggedImageIndex], pos.x, pos.y, displayGridWidth, displayGridHeight);
+    }
 }
 
 function drawImageWithAspectRatio(img, x, y, maxWidth, maxHeight) {
@@ -116,35 +123,38 @@ function drawImageWithAspectRatio(img, x, y, maxWidth, maxHeight) {
 }
 
 function enableDragAndDrop() {
-    let selectedImageIndex = null;
     let offsetX = 0;
     let offsetY = 0;
 
     canvas.addEventListener('mousedown', (e) => {
         const { offsetX: x, offsetY: y } = e;
-        selectedImageIndex = imagePositions.findIndex(pos => {
-            const img = images[imagePositions.indexOf(pos)];
-            const widthRatio = displayGridWidth / img.width;
-            const heightRatio = displayGridHeight / img.height;
-            const bestRatio = Math.min(widthRatio, heightRatio);
-            const newWidth = img.width * bestRatio;
-            const newHeight = img.height * bestRatio;
-            const offsetX = (displayGridWidth - newWidth) / 2;
-            const offsetY = (displayGridHeight - newHeight) / 2;
-            return x >= pos.x + offsetX && x <= pos.x + offsetX + newWidth && y >= pos.y + offsetY && y <= pos.y + offsetY + newHeight;
-        });
+        draggedImageIndex = imagePositions
+            .map((pos, index) => ({ pos, index }))
+            .filter(({ pos }) => {
+                const img = images[imagePositions.indexOf(pos)];
+                const widthRatio = displayGridWidth / img.width;
+                const heightRatio = displayGridHeight / img.height;
+                const bestRatio = Math.min(widthRatio, heightRatio);
+                const newWidth = img.width * bestRatio;
+                const newHeight = img.height * bestRatio;
+                const offsetX = (displayGridWidth - newWidth) / 2;
+                const offsetY = (displayGridHeight - newHeight) / 2;
+                return x >= pos.x + offsetX && x <= pos.x + offsetX + newWidth && y >= pos.y + offsetY && y <= pos.y + offsetY + newHeight;
+            })
+            .sort((a, b) => b.index - a.index) // Select the top-most image
+            .map(({ index }) => index)[0];
 
-        if (selectedImageIndex >= 0) {
-            const pos = imagePositions[selectedImageIndex];
+        if (draggedImageIndex >= 0) {
+            const pos = imagePositions[draggedImageIndex];
             offsetX = x - pos.x;
             offsetY = y - pos.y;
         }
     });
 
     canvas.addEventListener('mousemove', (e) => {
-        if (selectedImageIndex !== null) {
+        if (draggedImageIndex !== null) {
             const { offsetX: x, offsetY: y } = e;
-            const pos = imagePositions[selectedImageIndex];
+            const pos = imagePositions[draggedImageIndex];
             pos.x = x - offsetX;
             pos.y = y - offsetY;
             drawImages();
@@ -152,9 +162,9 @@ function enableDragAndDrop() {
     });
 
     canvas.addEventListener('mouseup', () => {
-        if (selectedImageIndex !== null) {
-            snapToGrid(selectedImageIndex);
-            selectedImageIndex = null;
+        if (draggedImageIndex !== null) {
+            snapToGrid(draggedImageIndex);
+            draggedImageIndex = null;
             drawImages();
         }
     });
@@ -169,7 +179,9 @@ function snapToGrid(index) {
 
     if (targetIndex >= 0) {
         // Swap positions
-        [imagePositions[index], imagePositions[targetIndex]] = [imagePositions[targetIndex], imagePositions[index]];
+        const tempPos = { ...imagePositions[index] };
+        imagePositions[index] = { ...imagePositions[targetIndex] };
+        imagePositions[targetIndex] = tempPos;
     } else {
         // Snap to closest grid position
         pos.x = targetX;
