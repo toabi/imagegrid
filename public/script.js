@@ -221,6 +221,7 @@ function enableDragAndDrop() {
         if (draggedImageIndex !== null) {
             snapToGrid(draggedImageIndex);
             draggedImageIndex = null;
+            repositionImages();
             drawImages();
         }
     });
@@ -239,11 +240,21 @@ function snapToGrid(index) {
 
     if (targetIndex >= 0) {
         // Swap positions
-        const tempPos = { ...imagePositions[index] };
-        imagePositions[index] = { ...imagePositions[targetIndex] };
-        imagePositions[targetIndex] = tempPos;
+        const tempPos = { ...imagePositions[targetIndex] };
+        imagePositions[targetIndex] = { ...imagePositions[index] };
+        imagePositions[index] = tempPos;
+
+        // Swap images
+        const tempImg = images[targetIndex];
+        images[targetIndex] = images[index];
+        images[index] = tempImg;
+
+        // Redraw images immediately after swapping
+        repositionImages();
+        drawImages();
     }
 }
+
 function downloadImage() {
     const originalCanvas = document.createElement('canvas');
     const originalCtx = originalCanvas.getContext('2d');
