@@ -38,7 +38,10 @@ function handleFileSelect(event) {
                     updateCanvasSize();
                 }
                 images.push(img);
-                imagePositions.push({ x: 0, y: 0 }); // Initial positions will be updated on drop
+                // Calculate initial positions in a grid
+                const col = i % 4;
+                const row = Math.floor(i / 4);
+                imagePositions.push({ x: col * displayGridWidth, y: row * displayGridHeight });
                 if (images.length === files.length) {
                     drawImages();
                     enableDragAndDrop();
@@ -78,6 +81,7 @@ function handleDrop(e) {
             const img = new Image();
             img.onload = function() {
                 images.push(img);
+                // Position based on drop location
                 imagePositions.push({ x: e.offsetX - displayGridWidth / 2, y: e.offsetY - displayGridHeight / 2 });
                 drawImages();
                 enableDragAndDrop();
