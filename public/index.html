@@ -2,34 +2,49 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>Image Grid Creator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Grid Arranger</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+        #toolbar-container {
+            margin: 10px;
+        }
+        #toolbar-container button, #toolbar-container input{
+            margin: 5px;
+            font-size: large;
+        }
+        #canvas-container {
+            position: relative;
+            display: inline-block;
+            margin: 10px;
+        }
+        #message-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #999;
+            pointer-events: none;
         }
         #canvas {
-            border: 1px solid black;
-        }
-        .upload-container {
-            margin-bottom: 5px;
-        }
-        button, input[type="file"] {
-            font-size: 16px;
-            padding: 5px;
-            margin: 5px;
+            border: 2px dashed #ccc;
+            transition: border-color 0.3s ease;
             cursor: pointer;
+        }
+        #canvas.drag-over {
+            border-color: #4CAF50;
         }
     </style>
 </head>
 <body>
-<p>Upload 8 images to arrange them in a 2x4 grid. No images will be uploaded.</p>
-<div class="upload-container">
+<div id="toolbar-container">
     <input type="file" id="fileInput" multiple accept="image/*">
     <button id="downloadBtn">Download Combined Image</button>
 </div>
-<canvas id="canvas" width="150" height="150"></canvas>
-
-<script src="script.js?v=2"></script>
+<div id="canvas-container">
+    <div id="message-container">You can also drag and drop up to 8 images into this area!</div>
+    <canvas id="canvas"></canvas>
+</div>
+<script src="script.js"></script>
 </body>
 </html>

@@ -2,6 +2,7 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const fileInput = document.getElementById('fileInput');
 const downloadBtn = document.getElementById('downloadBtn');
+const messageContainer = document.getElementById('message-container');
 
 const MAX_IMAGES = 8;
 const GRID_MAX_COLS = 4;
@@ -16,7 +17,8 @@ let maxCanvasWidth, maxCanvasHeight;
 
 fileInput.addEventListener('change', handleFileSelect);
 downloadBtn.addEventListener('click', downloadImage);
-canvas.addEventListener('dragover', (e) => e.preventDefault());
+canvas.addEventListener('dragover', handleDragOver);
+canvas.addEventListener('dragleave', handleDragLeave);
 canvas.addEventListener('drop', handleDrop);
 window.addEventListener('resize', handleResize);
 
@@ -39,6 +41,7 @@ function handleFileSelect(event) {
             repositionImages();
             drawImages();
             enableDragAndDrop();
+            updateMessageVisibility();
         });
 }
 
@@ -94,8 +97,19 @@ function repositionImages() {
     }));
 }
 
+function handleDragOver(e) {
+    e.preventDefault();
+    canvas.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+    e.preventDefault();
+    canvas.classList.remove('drag-over');
+}
+
 function handleDrop(e) {
     e.preventDefault();
+    canvas.classList.remove('drag-over');
     const files = Array.from(e.dataTransfer.files);
     if (images.length + files.length > MAX_IMAGES) {
         alert(`Please upload a total of up to ${MAX_IMAGES} images.`);
@@ -111,6 +125,7 @@ function handleDrop(e) {
             repositionImages();
             drawImages();
             enableDragAndDrop();
+            updateMessageVisibility();
         });
 }
 
@@ -285,3 +300,14 @@ function downloadImage() {
     link.href = originalCanvas.toDataURL();
     link.click();
 }
+
+function updateMessageVisibility() {
+    if (images.length === 0) {
+        messageContainer.style.display = 'block';
+    } else {
+        messageContainer.style.display = 'none';
+    }
+}
+
+// Initialize message visibility
+updateMessageVisibility();
