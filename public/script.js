@@ -3,6 +3,9 @@ const ctx = canvas.getContext('2d');
 const fileInput = document.getElementById('fileInput');
 const downloadBtn = document.getElementById('downloadBtn');
 
+const MAX_IMAGES = 8;
+const GRID_MAX_COLS = 4;
+
 let images = [];
 let imagePositions = [];
 let displayGridWidth = 200;
@@ -11,56 +14,52 @@ let draggedImageIndex = null;
 let gridCols, gridRows;
 let maxCanvasWidth, maxCanvasHeight;
 
-const POSITION_THRESHOLD = 1; // 1 pixel threshold
-
 fileInput.addEventListener('change', handleFileSelect);
 downloadBtn.addEventListener('click', downloadImage);
-canvas.addEventListener('dragover', handleDragOver);
+canvas.addEventListener('dragover', (e) => e.preventDefault());
 canvas.addEventListener('drop', handleDrop);
+window.addEventListener('resize', handleResize);
 
 function calculateGridSize(imageCount) {
-    if (imageCount <= 4) {
-        gridCols = imageCount;
-        gridRows = 1;
-    } else {
-        gridCols = 4;
-        gridRows = Math.ceil(imageCount / 4);
-    }
+    gridCols = Math.min(imageCount, GRID_MAX_COLS);
+    gridRows = Math.ceil(imageCount / GRID_MAX_COLS);
 }
 
 function handleFileSelect(event) {
-    const files = event.target.files;
-    if (files.length > 8) {
-        alert('Please upload up to 8 images.');
-        return;
-    }
+    const files = Array.from(event.target.files).slice(0, MAX_IMAGES);
+    if (files.length === 0) return;
 
-    images = [];
-    imagePositions = [];
-
+    resetImageState();
     calculateGridSize(files.length);
     calculateMaxCanvasSize();
 
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+    Promise.all(files.map(loadImage))
+        .then(() => {
+            updateCanvasSize();
+            repositionImages();
+            drawImages();
+            enableDragAndDrop();
+        });
+}
+
+function resetImageState() {
+    images = [];
+    imagePositions = [];
+}
+
+function loadImage(file) {
+    return new Promise((resolve) => {
         const reader = new FileReader();
-
-        reader.onload = function(e) {
+        reader.onload = (e) => {
             const img = new Image();
-            img.onload = function() {
+            img.onload = () => {
                 images.push(img);
-                if (images.length === files.length) {
-                    updateCanvasSize();
-                    repositionImages();
-                    drawImages();
-                    enableDragAndDrop();
-                }
-            }
+                resolve();
+            };
             img.src = e.target.result;
-        }
-
+        };
         reader.readAsDataURL(file);
-    }
+    });
 }
 
 function calculateMaxCanvasSize() {
@@ -71,141 +70,100 @@ function calculateMaxCanvasSize() {
 function updateCanvasSize() {
     calculateMaxCanvasSize();
 
-    let maxWidth = 0;
-    let maxHeight = 0;
+    const maxDimensions = images.reduce((acc, img) => ({
+        width: Math.max(acc.width, img.width),
+        height: Math.max(acc.height, img.height)
+    }), { width: 0, height: 0 });
 
-    images.forEach(img => {
-        maxWidth = Math.max(maxWidth, img.width);
-        maxHeight = Math.max(maxHeight, img.height);
-    });
+    const gridWidth = maxDimensions.width * gridCols;
+    const gridHeight = maxDimensions.height * gridRows;
 
-    let gridWidth = maxWidth * gridCols;
-    let gridHeight = maxHeight * gridRows;
+    const scale = Math.min(maxCanvasWidth / gridWidth, maxCanvasHeight / gridHeight, 1);
 
-    const scaleX = maxCanvasWidth / gridWidth;
-    const scaleY = maxCanvasHeight / gridHeight;
-    const scale = Math.min(scaleX, scaleY, 1);
-
-    displayGridWidth = maxWidth * scale;
-    displayGridHeight = maxHeight * scale;
+    displayGridWidth = maxDimensions.width * scale;
+    displayGridHeight = maxDimensions.height * scale;
 
     canvas.width = displayGridWidth * gridCols;
     canvas.height = displayGridHeight * gridRows;
 }
 
 function repositionImages() {
-    imagePositions = images.map((img, index) => {
-        const col = index % gridCols;
-        const row = Math.floor(index / gridCols);
-        return {
-            x: col * displayGridWidth,
-            y: row * displayGridHeight
-        };
-    });
-}
-
-function handleDragOver(e) {
-    e.preventDefault();
+    imagePositions = images.map((_, index) => ({
+        x: (index % gridCols) * displayGridWidth,
+        y: Math.floor(index / gridCols) * displayGridHeight
+    }));
 }
 
 function handleDrop(e) {
     e.preventDefault();
-    const dataTransfer = e.dataTransfer;
-    const files = dataTransfer.files;
-
-    if (files.length + images.length > 8) {
-        alert('Please upload a total of up to 8 images.');
+    const files = Array.from(e.dataTransfer.files);
+    if (images.length + files.length > MAX_IMAGES) {
+        alert(`Please upload a total of up to ${MAX_IMAGES} images.`);
         return;
     }
 
     calculateMaxCanvasSize();
 
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const reader = new FileReader();
-
-        reader.onload = function(e) {
-            const img = new Image();
-            img.onload = function() {
-                images.push(img);
-                imagePositions.push({ x: e.offsetX - displayGridWidth / 2, y: e.offsetY - displayGridHeight / 2 });
-                calculateGridSize(images.length);
-                updateCanvasSize();
-                repositionImages();
-                drawImages();
-                enableDragAndDrop();
-            }
-            img.src = e.target.result;
-        }
-
-        reader.readAsDataURL(file);
-    }
+    Promise.all(files.map(loadImage))
+        .then(() => {
+            calculateGridSize(images.length);
+            updateCanvasSize();
+            repositionImages();
+            drawImages();
+            enableDragAndDrop();
+        });
 }
 
 function drawImages() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     images.forEach((img, index) => {
         if (index !== draggedImageIndex) {
-            const pos = imagePositions[index];
-            drawImageWithAspectRatio(img, pos.x, pos.y, displayGridWidth, displayGridHeight);
+            drawImageWithAspectRatio(img, imagePositions[index]);
         }
     });
     if (draggedImageIndex !== null) {
-        const pos = imagePositions[draggedImageIndex];
-        drawImageWithAspectRatio(images[draggedImageIndex], pos.x, pos.y, displayGridWidth, displayGridHeight);
+        drawImageWithAspectRatio(images[draggedImageIndex], imagePositions[draggedImageIndex]);
     }
 }
 
-window.addEventListener('resize', () => {
+function handleResize() {
     if (images.length > 0) {
         updateCanvasSize();
         repositionImages();
         drawImages();
     }
-});
+}
 
-function drawImageWithAspectRatio(img, x, y, maxWidth, maxHeight) {
-    const widthRatio = maxWidth / img.width;
-    const heightRatio = maxHeight / img.height;
+function drawImageWithAspectRatio(img, pos) {
+    const widthRatio = displayGridWidth / img.width;
+    const heightRatio = displayGridHeight / img.height;
     const bestRatio = Math.min(widthRatio, heightRatio);
 
     const newWidth = img.width * bestRatio;
     const newHeight = img.height * bestRatio;
 
-    const offsetX = (maxWidth - newWidth) / 2;
-    const offsetY = (maxHeight - newHeight) / 2;
+    const offsetX = (displayGridWidth - newWidth) / 2;
+    const offsetY = (displayGridHeight - newHeight) / 2;
 
-    ctx.drawImage(img, x + offsetX, y + offsetY, newWidth, newHeight);
+    ctx.drawImage(img, pos.x + offsetX, pos.y + offsetY, newWidth, newHeight);
 }
 
 function enableDragAndDrop() {
     let offsetX = 0;
     let offsetY = 0;
 
+    canvas.addEventListener('mousedown', handleStart);
+    canvas.addEventListener('mousemove', handleMove);
+    canvas.addEventListener('mouseup', handleEnd);
+
+    canvas.addEventListener('touchstart', handleStart);
+    canvas.addEventListener('touchmove', handleMove);
+    canvas.addEventListener('touchend', handleEnd);
+
     function handleStart(e) {
         e.preventDefault();
-        const touch = e.touches ? e.touches[0] : e;
-        const rect = canvas.getBoundingClientRect();
-        const x = touch.clientX - rect.left;
-        const y = touch.clientY - rect.top;
-
-        console.log('Touch start:', x, y); // Add this line for debugging
-
-        draggedImageIndex = imagePositions
-            .map((pos, index) => ({ pos, index }))
-            .filter(({ pos }) => {
-                const img = images[imagePositions.indexOf(pos)];
-                const widthRatio = displayGridWidth / img.width;
-                const heightRatio = displayGridHeight / img.height;
-                const bestRatio = Math.min(widthRatio, heightRatio);
-                const newWidth = img.width * bestRatio;
-                const newHeight = img.height * bestRatio;
-                const offsetX = (displayGridWidth - newWidth) / 2;
-                const offsetY = (displayGridHeight - newHeight) / 2;
-                return x >= pos.x + offsetX && x <= pos.x + offsetX + newWidth && y >= pos.y + offsetY && y <= pos.y + offsetY + newHeight;
-            })
-            .sort((a, b) => b.index - a.index)
-            .map(({ index }) => index)[0];
+        const { x, y } = getCanvasCoordinates(e);
+        draggedImageIndex = findDraggedImageIndex(x, y);
 
         if (draggedImageIndex >= 0) {
             const pos = imagePositions[draggedImageIndex];
@@ -217,14 +175,8 @@ function enableDragAndDrop() {
     function handleMove(e) {
         if (draggedImageIndex !== null) {
             e.preventDefault();
-            const touch = e.touches ? e.touches[0] : e;
-            const rect = canvas.getBoundingClientRect();
-            const x = touch.clientX - rect.left;
-            const y = touch.clientY - rect.top;
-
-            const pos = imagePositions[draggedImageIndex];
-            pos.x = x - offsetX;
-            pos.y = y - offsetY;
+            const { x, y } = getCanvasCoordinates(e);
+            updateDraggedImagePosition(x, y, offsetX, offsetY);
             drawImages();
         }
     }
@@ -237,68 +189,94 @@ function enableDragAndDrop() {
             drawImages();
         }
     }
-
-    canvas.addEventListener('mousedown', handleStart);
-    canvas.addEventListener('mousemove', handleMove);
-    canvas.addEventListener('mouseup', handleEnd);
-
-    canvas.addEventListener('touchstart', handleStart);
-    canvas.addEventListener('touchmove', handleMove);
-    canvas.addEventListener('touchend', handleEnd);
 }
 
-function arePositionsEqual(pos1, pos2) {
-    return Math.abs(pos1.x - pos2.x) < POSITION_THRESHOLD &&
-        Math.abs(pos1.y - pos2.y) < POSITION_THRESHOLD;
+function getCanvasCoordinates(e) {
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches ? e.touches[0] : e;
+    return {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top
+    };
+}
+
+function findDraggedImageIndex(x, y) {
+    return imagePositions
+        .map((pos, index) => ({ pos, index }))
+        .filter(({ pos }) => isPointInsideImage(x, y, pos))
+        .sort((a, b) => b.index - a.index)
+        .map(({ index }) => index)[0] ?? -1;
+}
+
+function isPointInsideImage(x, y, pos) {
+    const img = images[imagePositions.indexOf(pos)];
+    const { width: newWidth, height: newHeight } = getScaledImageDimensions(img);
+    const offsetX = (displayGridWidth - newWidth) / 2;
+    const offsetY = (displayGridHeight - newHeight) / 2;
+    return x >= pos.x + offsetX && x <= pos.x + offsetX + newWidth &&
+        y >= pos.y + offsetY && y <= pos.y + offsetY + newHeight;
+}
+
+function getScaledImageDimensions(img) {
+    const widthRatio = displayGridWidth / img.width;
+    const heightRatio = displayGridHeight / img.height;
+    const bestRatio = Math.min(widthRatio, heightRatio);
+    return {
+        width: img.width * bestRatio,
+        height: img.height * bestRatio
+    };
+}
+
+function updateDraggedImagePosition(x, y, offsetX, offsetY) {
+    const pos = imagePositions[draggedImageIndex];
+    pos.x = x - offsetX;
+    pos.y = y - offsetY;
 }
 
 function snapToGrid(index) {
     const pos = imagePositions[index];
-    const targetX = Math.round(pos.x / displayGridWidth) * displayGridWidth;
-    const targetY = Math.round(pos.y / displayGridHeight) * displayGridHeight;
+    pos.x = Math.max(0, Math.min(Math.round(pos.x / displayGridWidth) * displayGridWidth, canvas.width - displayGridWidth));
+    pos.y = Math.max(0, Math.min(Math.round(pos.y / displayGridHeight) * displayGridHeight, canvas.height - displayGridHeight));
 
-    pos.x = Math.max(0, Math.min(targetX, canvas.width - displayGridWidth));
-    pos.y = Math.max(0, Math.min(targetY, canvas.height - displayGridHeight));
-
-    const targetIndex = imagePositions.findIndex((p, i) =>
-        i !== index &&
-        Math.abs(p.x - pos.x) < displayGridWidth / 2 &&
-        Math.abs(p.y - pos.y) < displayGridHeight / 2
-    );
+    const targetIndex = findTargetImageIndex(index, pos);
 
     if (targetIndex >= 0) {
-        const tempPos = { ...imagePositions[targetIndex] };
-        imagePositions[targetIndex] = { ...imagePositions[index] };
-        imagePositions[index] = tempPos;
-
-        const tempImg = images[targetIndex];
-        images[targetIndex] = images[index];
-        images[index] = tempImg;
+        swapImagesAndPositions(index, targetIndex);
     }
 
     repositionImages();
     drawImages();
 }
 
+function findTargetImageIndex(index, pos) {
+    return imagePositions.findIndex((p, i) =>
+        i !== index &&
+        Math.abs(p.x - pos.x) < displayGridWidth / 2 &&
+        Math.abs(p.y - pos.y) < displayGridHeight / 2
+    );
+}
+
+function swapImagesAndPositions(index1, index2) {
+    [imagePositions[index1], imagePositions[index2]] = [imagePositions[index2], imagePositions[index1]];
+    [images[index1], images[index2]] = [images[index2], images[index1]];
+}
+
 function downloadImage() {
     const originalCanvas = document.createElement('canvas');
     const originalCtx = originalCanvas.getContext('2d');
 
-    let maxWidth = 0;
-    let maxHeight = 0;
+    const maxDimensions = images.reduce((acc, img) => ({
+        width: Math.max(acc.width, img.width),
+        height: Math.max(acc.height, img.height)
+    }), { width: 0, height: 0 });
 
-    images.forEach(img => {
-        maxWidth = Math.max(maxWidth, img.width);
-        maxHeight = Math.max(maxHeight, img.height);
-    });
-
-    originalCanvas.width = maxWidth * gridCols;
-    originalCanvas.height = maxHeight * gridRows;
+    originalCanvas.width = maxDimensions.width * gridCols;
+    originalCanvas.height = maxDimensions.height * gridRows;
 
     images.forEach((img, index) => {
         const pos = imagePositions[index];
-        const x = (pos.x / displayGridWidth) * maxWidth;
-        const y = (pos.y / displayGridHeight) * maxHeight;
+        const x = (pos.x / displayGridWidth) * maxDimensions.width;
+        const y = (pos.y / displayGridHeight) * maxDimensions.height;
         originalCtx.drawImage(img, x, y);
     });
 
