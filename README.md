@@ -12,3 +12,5 @@ Github is configured to serve it under <https://toabi.github.io/imagegrid/>.
 ## Notes
 
 The code was written 99% by GPT4o and Claude 3.5 with minor human modifications.
+
+Improved in July 2026 with Claude/Opus 4.8.
