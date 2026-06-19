@@ -4,8 +4,22 @@ const fileInput = document.getElementById('fileInput');
 const downloadBtn = document.getElementById('downloadBtn');
 const messageContainer = document.getElementById('message-container');
 
-const MAX_IMAGES = 8;
-const GRID_MAX_COLS = 4;
+const GRID_MIN = 1;
+const GRID_MAX = 8;
+let configRows = 2;
+let configCols = 4;
+
+function getMaxImages() {
+    return configRows * configCols;
+}
+
+function getVisibleCount() {
+    return Math.min(images.length, getMaxImages());
+}
+
+function getVisibleImages() {
+    return images.slice(0, getVisibleCount());
+}
 
 let images = [];
 let imagePositions = [];
@@ -22,17 +36,30 @@ canvas.addEventListener('dragleave', handleDragLeave);
 canvas.addEventListener('drop', handleDrop);
 window.addEventListener('resize', handleResize);
 
-function calculateGridSize(imageCount) {
-    gridCols = Math.min(imageCount, GRID_MAX_COLS);
-    gridRows = Math.ceil(imageCount / GRID_MAX_COLS);
+function calculateGridSize() {
+    gridCols = configCols;
+    gridRows = configRows;
+}
+
+function setGridDimensions(rows, cols) {
+    configRows = Math.max(GRID_MIN, Math.min(GRID_MAX, rows));
+    configCols = Math.max(GRID_MIN, Math.min(GRID_MAX, cols));
+
+    calculateGridSize();
+    calculateMaxCanvasSize();
+    updateCanvasSize();
+    repositionImages();
+    drawImages();
+    enableDragAndDrop();
+    updateMessageVisibility();
 }
 
 function handleFileSelect(event) {
-    const files = Array.from(event.target.files).slice(0, MAX_IMAGES);
+    const files = Array.from(event.target.files).slice(0, getMaxImages());
     if (files.length === 0) return;
 
     resetImageState();
-    calculateGridSize(files.length);
+    calculateGridSize();
     calculateMaxCanvasSize();
 
     Promise.all(files.map(loadImage))
@@ -73,10 +100,19 @@ function calculateMaxCanvasSize() {
 function updateCanvasSize() {
     calculateMaxCanvasSize();
 
-    const maxDimensions = images.reduce((acc, img) => ({
+    const maxDimensions = getVisibleImages().reduce((acc, img) => ({
         width: Math.max(acc.width, img.width),
         height: Math.max(acc.height, img.height)
     }), { width: 0, height: 0 });
+
+    if (images.length === 0) {
+        const cell = 120;
+        displayGridWidth = Math.min(cell, maxCanvasWidth / gridCols);
+        displayGridHeight = Math.min(cell, maxCanvasHeight / gridRows);
+        canvas.width = displayGridWidth * gridCols;
+        canvas.height = displayGridHeight * gridRows;
+        return;
+    }
 
     const gridWidth = maxDimensions.width * gridCols;
     const gridHeight = maxDimensions.height * gridRows;
@@ -91,7 +127,7 @@ function updateCanvasSize() {
 }
 
 function repositionImages() {
-    imagePositions = images.map((_, index) => ({
+    imagePositions = getVisibleImages().map((_, index) => ({
         x: (index % gridCols) * displayGridWidth,
         y: Math.floor(index / gridCols) * displayGridHeight
     }));
@@ -111,8 +147,8 @@ function handleDrop(e) {
     e.preventDefault();
     canvas.classList.remove('drag-over');
     const files = Array.from(e.dataTransfer.files);
-    if (images.length + files.length > MAX_IMAGES) {
-        alert(`Please upload a total of up to ${MAX_IMAGES} images.`);
+    if (images.length + files.length > getMaxImages()) {
+        alert(`Please upload a total of up to ${getMaxImages()} images.`);
         return;
     }
 
@@ -120,7 +156,7 @@ function handleDrop(e) {
 
     Promise.all(files.map(loadImage))
         .then(() => {
-            calculateGridSize(images.length);
+            calculateGridSize();
             updateCanvasSize();
             repositionImages();
             drawImages();
@@ -131,8 +167,9 @@ function handleDrop(e) {
 
 function drawImages() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const visibleCount = getVisibleCount();
     images.forEach((img, index) => {
-        if (index !== draggedImageIndex) {
+        if (index < visibleCount && index !== draggedImageIndex) {
             drawImageWithAspectRatio(img, imagePositions[index]);
         }
     });
@@ -280,7 +317,8 @@ function downloadImage() {
     const originalCanvas = document.createElement('canvas');
     const originalCtx = originalCanvas.getContext('2d');
 
-    const maxDimensions = images.reduce((acc, img) => ({
+    const visibleImages = getVisibleImages();
+    const maxDimensions = visibleImages.reduce((acc, img) => ({
         width: Math.max(acc.width, img.width),
         height: Math.max(acc.height, img.height)
     }), { width: 0, height: 0 });
@@ -288,7 +326,7 @@ function downloadImage() {
     originalCanvas.width = maxDimensions.width * gridCols;
     originalCanvas.height = maxDimensions.height * gridRows;
 
-    images.forEach((img, index) => {
+    visibleImages.forEach((img, index) => {
         const pos = imagePositions[index];
         const x = (pos.x / displayGridWidth) * maxDimensions.width;
         const y = (pos.y / displayGridHeight) * maxDimensions.height;
@@ -309,5 +347,36 @@ function updateMessageVisibility() {
     }
 }
 
-// Initialize message visibility
+// Stepper controls for grid dimensions
+const rowsValue = document.getElementById('rowsValue');
+const colsValue = document.getElementById('colsValue');
+const rowsDec = document.getElementById('rowsDec');
+const rowsInc = document.getElementById('rowsInc');
+const colsDec = document.getElementById('colsDec');
+const colsInc = document.getElementById('colsInc');
+
+function updateStepperUI() {
+    rowsValue.textContent = configRows;
+    colsValue.textContent = configCols;
+    rowsDec.disabled = configRows <= GRID_MIN;
+    rowsInc.disabled = configRows >= GRID_MAX;
+    colsDec.disabled = configCols <= GRID_MIN;
+    colsInc.disabled = configCols >= GRID_MAX;
+}
+
+function changeDimensions(rows, cols) {
+    setGridDimensions(rows, cols);
+    updateStepperUI();
+}
+
+rowsDec.addEventListener('click', () => changeDimensions(configRows - 1, configCols));
+rowsInc.addEventListener('click', () => changeDimensions(configRows + 1, configCols));
+colsDec.addEventListener('click', () => changeDimensions(configRows, configCols - 1));
+colsInc.addEventListener('click', () => changeDimensions(configRows, configCols + 1));
+
+// Initialize grid and canvas with default dimensions
+calculateGridSize();
+calculateMaxCanvasSize();
+updateCanvasSize();
 updateMessageVisibility();
+updateStepperUI();

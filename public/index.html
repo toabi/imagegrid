@@ -63,6 +63,44 @@
             font-size: 1rem;
         }
 
+        .stepper {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            margin: 0 0.15rem;
+            vertical-align: middle;
+        }
+
+        .stepper button {
+            width: 1.5rem;
+            height: 1.5rem;
+            padding: 0;
+            line-height: 1;
+            font-size: 0.85rem;
+            color: var(--text);
+            background-color: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+        }
+
+        .stepper button:hover:not(:disabled) {
+            border-color: var(--accent);
+        }
+
+        .stepper button:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+
+        .stepper .stepper-value {
+            min-width: 1.1rem;
+            text-align: center;
+            font-weight: 600;
+            color: var(--text);
+        }
+
         #toolbar-container {
             display: flex;
             flex-wrap: wrap;
@@ -171,14 +209,23 @@
 <body>
 <header>
     <h1>Image Grid</h1>
-    <p>Arrange up to 8 images in a tidy 2&times;4 grid, reorder them by dragging, and download the result.</p>
+    <p>Arrange your images in a tidy
+        <span class="stepper">
+            <button id="rowsDec" type="button" aria-label="Decrease rows">&#9660;</button>
+            <span id="rowsValue" class="stepper-value">2</span>
+            <button id="rowsInc" type="button" aria-label="Increase rows">&#9650;</button>
+        </span>&times;<span class="stepper">
+            <button id="colsDec" type="button" aria-label="Decrease columns">&#9660;</button>
+            <span id="colsValue" class="stepper-value">4</span>
+            <button id="colsInc" type="button" aria-label="Increase columns">&#9650;</button>
+        </span> grid, reorder them by dragging, and download the result.</p>
 </header>
 <div id="toolbar-container">
     <input type="file" id="fileInput" multiple accept="image/*">
     <button id="downloadBtn">Download Combined Image</button>
 </div>
 <div id="canvas-container">
-    <div id="message-container">You can also drag and drop up to 8 images into this area!</div>
+    <div id="message-container">You can also drag and drop images into this area!</div>
     <canvas id="canvas"></canvas>
 </div>
 <footer>

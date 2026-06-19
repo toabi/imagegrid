@@ -1,7 +1,8 @@
 # Image Grid
 
-Arranges 8 pictures in a grid of two rows
-and four columns.
+Arranges pictures in a configurable grid. Use the up/down arrows in the
+header to choose the number of rows and columns (1–8 each, defaulting to a
+2×4 grid). The maximum number of images equals rows × columns.
 
 ## Usage
 
