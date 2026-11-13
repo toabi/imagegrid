@@ -50,26 +50,43 @@ function setGridDimensions(rows, cols) {
     updateCanvasSize();
     repositionImages();
     drawImages();
-    enableDragAndDrop();
     updateMessageVisibility();
 }
 
+function isImageFile(file) {
+    return file.type.startsWith('image/');
+}
+
 function handleFileSelect(event) {
-    const files = Array.from(event.target.files).slice(0, getMaxImages());
+    const files = Array.from(event.target.files).filter(isImageFile).slice(0, getMaxImages());
+    // Reset so that selecting the same files again still fires 'change'.
+    event.target.value = '';
     if (files.length === 0) return;
 
-    resetImageState();
-    calculateGridSize();
-    calculateMaxCanvasSize();
+    loadImages(files).then((loaded) => {
+        resetImageState();
+        addImages(loaded);
+    });
+}
 
-    Promise.all(files.map(loadImage))
-        .then(() => {
-            updateCanvasSize();
-            repositionImages();
-            drawImages();
-            enableDragAndDrop();
-            updateMessageVisibility();
-        });
+// Loads all files, keeping their original order and skipping any that fail to decode.
+function loadImages(files) {
+    return Promise.all(files.map(loadImage)).then((results) => {
+        const loaded = results.filter(Boolean);
+        if (loaded.length < results.length) {
+            alert(`${results.length - loaded.length} file(s) could not be loaded as images and were skipped.`);
+        }
+        return loaded;
+    });
+}
+
+function addImages(loaded) {
+    images.push(...loaded);
+    calculateGridSize();
+    updateCanvasSize();
+    repositionImages();
+    drawImages();
+    updateMessageVisibility();
 }
 
 function resetImageState() {
@@ -77,17 +94,17 @@ function resetImageState() {
     imagePositions = [];
 }
 
+// Resolves with the loaded image, or null if the file could not be read or decoded.
 function loadImage(file) {
     return new Promise((resolve) => {
         const reader = new FileReader();
         reader.onload = (e) => {
             const img = new Image();
-            img.onload = () => {
-                images.push(img);
-                resolve();
-            };
+            img.onload = () => resolve(img);
+            img.onerror = () => resolve(null);
             img.src = e.target.result;
         };
+        reader.onerror = () => resolve(null);
         reader.readAsDataURL(file);
     });
 }
@@ -146,23 +163,19 @@ function handleDragLeave(e) {
 function handleDrop(e) {
     e.preventDefault();
     canvas.classList.remove('drag-over');
-    const files = Array.from(e.dataTransfer.files);
+    const files = Array.from(e.dataTransfer.files).filter(isImageFile);
+    if (files.length === 0) {
+        if (e.dataTransfer.files.length > 0) {
+            alert('Only image files can be added.');
+        }
+        return;
+    }
     if (images.length + files.length > getMaxImages()) {
         alert(`Please upload a total of up to ${getMaxImages()} images.`);
         return;
     }
 
-    calculateMaxCanvasSize();
-
-    Promise.all(files.map(loadImage))
-        .then(() => {
-            calculateGridSize();
-            updateCanvasSize();
-            repositionImages();
-            drawImages();
-            enableDragAndDrop();
-            updateMessageVisibility();
-        });
+    loadImages(files).then(addImages);
 }
 
 function drawImages() {
@@ -200,28 +213,34 @@ function drawImageWithAspectRatio(img, pos) {
     ctx.drawImage(img, pos.x + offsetX, pos.y + offsetY, newWidth, newHeight);
 }
 
+// Registers the reorder-by-dragging handlers. Must be called exactly once.
 function enableDragAndDrop() {
     let offsetX = 0;
     let offsetY = 0;
 
     canvas.addEventListener('mousedown', handleStart);
-    canvas.addEventListener('mousemove', handleMove);
-    canvas.addEventListener('mouseup', handleEnd);
+    // Listen on window so a drag that ends outside the canvas still finishes.
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
 
     canvas.addEventListener('touchstart', handleStart);
     canvas.addEventListener('touchmove', handleMove);
     canvas.addEventListener('touchend', handleEnd);
+    canvas.addEventListener('touchcancel', handleEnd);
 
     function handleStart(e) {
-        e.preventDefault();
         const { x, y } = getCanvasCoordinates(e);
-        draggedImageIndex = findDraggedImageIndex(x, y);
-
-        if (draggedImageIndex >= 0) {
-            const pos = imagePositions[draggedImageIndex];
-            offsetX = x - pos.x;
-            offsetY = y - pos.y;
+        const index = findDraggedImageIndex(x, y);
+        if (index < 0) {
+            draggedImageIndex = null;
+            return;
         }
+
+        e.preventDefault();
+        draggedImageIndex = index;
+        const pos = imagePositions[index];
+        offsetX = x - pos.x;
+        offsetY = y - pos.y;
     }
 
     function handleMove(e) {
@@ -314,6 +333,11 @@ function swapImagesAndPositions(index1, index2) {
 }
 
 function downloadImage() {
+    if (getVisibleCount() === 0) {
+        alert('Add some images first.');
+        return;
+    }
+
     const originalCanvas = document.createElement('canvas');
     const originalCtx = originalCanvas.getContext('2d');
 
@@ -375,6 +399,7 @@ colsDec.addEventListener('click', () => changeDimensions(configRows, configCols 
 colsInc.addEventListener('click', () => changeDimensions(configRows, configCols + 1));
 
 // Initialize grid and canvas with default dimensions
+enableDragAndDrop();
 calculateGridSize();
 calculateMaxCanvasSize();
 updateCanvasSize();
