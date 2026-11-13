@@ -15,6 +15,9 @@ const fileInput = document.getElementById('fileInput');
 const downloadBtn = document.getElementById('downloadBtn');
 const emptyMessage = document.getElementById('message-container');
 const notice = document.getElementById('notice');
+const noticeText = document.getElementById('noticeText');
+const noticeClose = document.getElementById('noticeClose');
+const announcer = document.getElementById('announcer');
 const steppers = {
     rowsValue: document.getElementById('rowsValue'),
     colsValue: document.getElementById('colsValue'),
@@ -27,6 +30,9 @@ const steppers = {
 // Share of the viewport the preview canvas may use.
 const VIEWPORT_WIDTH_SHARE = 0.9;
 const VIEWPORT_HEIGHT_SHARE = 0.8;
+// Smallest cell edge in CSS pixels, so each cell is a usable touch target
+// (WCAG 2.5.5); matches --target-size in index.html.
+const MIN_CELL_SIZE = 44;
 
 const state = model.createState();
 
@@ -57,7 +63,8 @@ function computePreviewGrid() {
         rows: state.rows,
         cols: state.cols,
         maxWidth: available.width,
-        maxHeight: available.height
+        maxHeight: available.height,
+        minCell: MIN_CELL_SIZE
     });
     return { rows: state.rows, cols: state.cols, cellWidth: cell.width, cellHeight: cell.height };
 }
@@ -95,19 +102,32 @@ function draw() {
 function renderSteppers() {
     steppers.rowsValue.textContent = state.rows;
     steppers.colsValue.textContent = state.cols;
-    steppers.rowsDec.disabled = state.rows <= GRID_MIN;
-    steppers.rowsInc.disabled = state.rows >= GRID_MAX;
-    steppers.colsDec.disabled = state.cols <= GRID_MIN;
-    steppers.colsInc.disabled = state.cols >= GRID_MAX;
+    // aria-disabled instead of disabled, so focus stays on a button that just
+    // reached its limit; pressing it again is a no-op because sizes are clamped.
+    steppers.rowsDec.setAttribute('aria-disabled', state.rows <= GRID_MIN);
+    steppers.rowsInc.setAttribute('aria-disabled', state.rows >= GRID_MAX);
+    steppers.colsDec.setAttribute('aria-disabled', state.cols <= GRID_MIN);
+    steppers.colsInc.setAttribute('aria-disabled', state.cols >= GRID_MAX);
 }
 
-let noticeTimer;
-function showNotice(message) {
-    notice.textContent = message;
-    notice.hidden = false;
-    clearTimeout(noticeTimer);
-    noticeTimer = setTimeout(() => { notice.hidden = true; }, 5000);
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+// Reads `message` out to screen readers without showing anything.
+function announce(message) {
+    // Clearing first makes a repeated identical message be announced again.
+    announcer.textContent = '';
+    requestAnimationFrame(() => { announcer.textContent = message; });
 }
+
+// Shows a message until the user dismisses it or a new one replaces it
+// (no timeout, so there is always enough time to read it) and announces it.
+function showNotice(message) {
+    noticeText.textContent = message;
+    notice.hidden = false;
+    announce(message);
+}
+
+noticeClose.addEventListener('click', () => { notice.hidden = true; });
 
 const capacityMessage = () => `Please upload a total of up to ${model.capacity(state)} images.`;
 
@@ -116,6 +136,7 @@ const capacityMessage = () => `Please upload a total of up to ${model.capacity(s
 function changeGridSize(rows, cols) {
     model.setGridSize(state, rows, cols);
     render();
+    announce(`Grid: ${plural(state.rows, 'row')} by ${plural(state.cols, 'column')}.`);
 }
 
 // Loads run in parallel but are applied in the order they were started, so the
@@ -154,12 +175,16 @@ function applyLoadedImages({ loaded, failed }, { replace, note }) {
 }
 
 async function downloadCombinedImage() {
+    // aria-disabled instead of disabled while exporting, so keyboard focus
+    // stays on the button.
+    if (downloadBtn.getAttribute('aria-disabled') === 'true') return;
     const visible = model.visibleImages(state);
     if (visible.length === 0) {
         showNotice('Add some images first.');
         return;
     }
-    downloadBtn.disabled = true;
+    downloadBtn.setAttribute('aria-disabled', 'true');
+    announce('Preparing the combined image…');
     try {
         const result = await renderGridToBlob(visible, state.rows, state.cols);
         if (!result) {
@@ -171,7 +196,7 @@ async function downloadCombinedImage() {
             showNotice('The combined image was scaled down to stay within the browser’s size limit.');
         }
     } finally {
-        downloadBtn.disabled = false;
+        downloadBtn.removeAttribute('aria-disabled');
     }
 }
 

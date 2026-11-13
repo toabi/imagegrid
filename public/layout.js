@@ -48,20 +48,26 @@ export function fitRect(srcWidth, srcHeight, box) {
 
 // Cell size for the on-screen preview. Cells take the aspect ratio of the
 // largest image dimensions and are scaled down (never up) to fit the space.
-// With no content, a fixed placeholder cell size is used.
-export function previewCellSize({ content, rows, cols, maxWidth, maxHeight, emptyCell = 120 }) {
+// With no content, a fixed placeholder cell size is used. Either way the
+// shorter side never drops below `minCell`, so every cell stays a usable
+// touch target (the canvas then scrolls instead).
+export function previewCellSize({ content, rows, cols, maxWidth, maxHeight, emptyCell = 120, minCell = 0 }) {
+    let size;
     if (!content || content.width === 0 || content.height === 0) {
-        return {
+        size = {
             width: Math.min(emptyCell, maxWidth / cols),
             height: Math.min(emptyCell, maxHeight / rows)
         };
+    } else {
+        const scale = Math.min(
+            maxWidth / (content.width * cols),
+            maxHeight / (content.height * rows),
+            1
+        );
+        size = { width: content.width * scale, height: content.height * scale };
     }
-    const scale = Math.min(
-        maxWidth / (content.width * cols),
-        maxHeight / (content.height * rows),
-        1
-    );
-    return { width: content.width * scale, height: content.height * scale };
+    const grow = Math.max(1, minCell / Math.min(size.width, size.height));
+    return { width: size.width * grow, height: size.height * grow };
 }
 
 // Index of the cell containing (x, y), clamped to the grid so points outside

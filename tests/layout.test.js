@@ -39,6 +39,13 @@ test('previewCellSize never upscales and fits the space', () => {
     assert.deepEqual(previewCellSize({ content: null, rows: 2, cols: 4, maxWidth: 240, maxHeight: 1000 }), { width: 60, height: 120 });
 });
 
+test('previewCellSize keeps the shorter cell side at least minCell', () => {
+    // 2:1 content squeezed to 20×10 per cell grows to 88×44.
+    assert.deepEqual(previewCellSize({ content: { width: 200, height: 100 }, rows: 1, cols: 8, maxWidth: 160, maxHeight: 1000, minCell: 44 }), { width: 88, height: 44 });
+    // Already large enough: unchanged.
+    assert.deepEqual(previewCellSize({ content: { width: 100, height: 50 }, rows: 1, cols: 1, maxWidth: 1000, maxHeight: 1000, minCell: 44 }), { width: 100, height: 50 });
+});
+
 test('cellIndexAt clamps points outside the grid to edge cells', () => {
     assert.equal(cellIndexAt(150, 10, grid), 1);
     assert.equal(cellIndexAt(-20, 70, grid), 4);
