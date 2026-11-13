@@ -1,5 +1,6 @@
 // Entry point: owns the app state and wires the UI to it.
-// Every change updates `state` and then calls render().
+// Every change updates `state`, then calls render() (layout + draw) or, for a
+// moving drag, just draw().
 import {
     GRID_MIN, GRID_MAX, clampGridSize, largestSize, previewCellSize,
     cellRect, dropTargetIndex, imageIndexAt
@@ -54,7 +55,10 @@ function computePreviewGrid() {
 }
 
 // Full update: recompute the layout, resize the canvas, redraw and sync the UI.
+// A layout change (new images, grid size, window size) invalidates a running
+// drag's cell index and offsets, so it cancels the drag.
 function render() {
+    state.drag = null;
     grid = computePreviewGrid();
 
     // Size the backing store for the device pixel ratio so it stays sharp on
@@ -103,8 +107,6 @@ function showNotice(message) {
 // ------------------------------------------------------------------ actions
 
 function setGridSize(rows, cols) {
-    // A running drag may refer to a cell that is about to disappear.
-    state.drag = null;
     state.rows = clampGridSize(rows);
     state.cols = clampGridSize(cols);
     render();
@@ -119,15 +121,18 @@ async function addFiles(files, { replace }) {
     const { loaded, failed } = await loadImages(files);
     if (generation !== replaceGeneration) return;
 
+    const messages = [];
     if (failed > 0) {
-        showNotice(`${failed} file(s) could not be loaded as images and were skipped.`);
+        messages.push(`${failed} file(s) could not be loaded as images and were skipped.`);
     }
-    if (loaded.length === 0) return;
     // Re-check after loading: another drop may have filled the grid meanwhile.
-    if (!replace && state.images.length + loaded.length > maxImages()) {
-        showNotice(`Please upload a total of up to ${maxImages()} images.`);
-        return;
+    const overLimit = !replace && state.images.length + loaded.length > maxImages();
+    if (overLimit) {
+        messages.push(`Please upload a total of up to ${maxImages()} images.`);
     }
+    if (messages.length > 0) showNotice(messages.join(' '));
+    if (loaded.length === 0 || overLimit) return;
+
     state.images = replace ? loaded : [...state.images, ...loaded];
     render();
 }
@@ -222,7 +227,7 @@ canvas.addEventListener('pointerdown', (e) => {
     }
     const cell = cellRect(index, grid);
     state.drag = { index, pointerId: e.pointerId, x: p.x, y: p.y, offsetX: p.x - cell.x, offsetY: p.y - cell.y };
-    render();
+    draw();
 });
 
 // Move/end listeners sit on window: with pointer capture the events bubble up
@@ -267,5 +272,15 @@ steppers.rowsInc.addEventListener('click', () => setGridSize(state.rows + 1, sta
 steppers.colsDec.addEventListener('click', () => setGridSize(state.rows, state.cols - 1));
 steppers.colsInc.addEventListener('click', () => setGridSize(state.rows, state.cols + 1));
 window.addEventListener('resize', render);
+
+// Re-render when the device pixel ratio changes without a resize, e.g. when
+// the window moves to a monitor with a different pixel density.
+function watchPixelRatio() {
+    matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`).addEventListener('change', () => {
+        render();
+        watchPixelRatio();
+    }, { once: true });
+}
+watchPixelRatio();
 
 render();

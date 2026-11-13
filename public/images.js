@@ -1,7 +1,10 @@
 // Turning user-supplied files into drawable images.
 
+// Files with an image MIME type, plus files with no type at all: browsers
+// report '' for extensions the OS doesn't know (e.g. .avif on some systems),
+// so those are tried and rejected only if they fail to decode.
 export function isImageFile(file) {
-    return file.type.startsWith('image/');
+    return file.type === '' || file.type.startsWith('image/');
 }
 
 // Resolves with the decoded image, or null if the file can't be decoded or
