@@ -1,10 +1,10 @@
-// Entry point: owns the app state and wires the UI to it.
-// Every change updates `state`, then calls render() (layout + draw) or, for a
-// moving drag, just draw().
+// Entry point: wires the UI to the app state.
+// Event handlers change the state through the transitions in state.js, then
+// call render() (layout + draw) or, while a drag moves, just draw().
 import {
-    GRID_MIN, GRID_MAX, clampGridSize, largestSize, previewCellSize,
-    cellRect, dropTargetIndex, imageIndexAt
+    GRID_MIN, GRID_MAX, largestSize, previewCellSize, cellRect, dropTargetIndex, imageIndexAt
 } from './layout.js';
+import * as model from './state.js';
 import { isImageFile, loadImages } from './images.js';
 import { drawGrid } from './render.js';
 import { renderGridToBlob, saveBlob } from './export.js';
@@ -24,41 +24,46 @@ const steppers = {
     colsInc: document.getElementById('colsInc')
 };
 
-const state = {
-    rows: 2,
-    cols: 4,
-    // All loaded images, in grid order. Only the first rows × cols are shown;
-    // the rest are kept so that growing the grid again brings them back.
-    images: [],
-    // Active reorder drag: { index, pointerId, x, y, offsetX, offsetY } or null.
-    drag: null
-};
+// Share of the viewport the preview canvas may use.
+const VIEWPORT_WIDTH_SHARE = 0.9;
+const VIEWPORT_HEIGHT_SHARE = 0.8;
+
+const state = model.createState({ rows: 2, cols: 4 });
 
 // Preview layout from the last render, in CSS pixels. Used for hit-testing.
 let grid = { rows: state.rows, cols: state.cols, cellWidth: 0, cellHeight: 0 };
 
-const maxImages = () => state.rows * state.cols;
-const visibleImages = () => state.images.slice(0, maxImages());
-
 // ---------------------------------------------------------------- rendering
 
+// Largest CSS size the canvas content may take. Besides the viewport share it
+// must fit the page's content box minus the canvas border, or narrow phones
+// would scroll sideways.
+function availableCanvasSize() {
+    const body = getComputedStyle(document.body);
+    const contentWidth = document.documentElement.clientWidth
+        - parseFloat(body.paddingLeft) - parseFloat(body.paddingRight);
+    const border = canvas.offsetWidth - canvas.clientWidth;
+    return {
+        width: Math.max(1, Math.min(window.innerWidth * VIEWPORT_WIDTH_SHARE, contentWidth - border)),
+        height: window.innerHeight * VIEWPORT_HEIGHT_SHARE
+    };
+}
+
 function computePreviewGrid() {
-    const visible = visibleImages();
+    const visible = model.visibleImages(state);
+    const available = availableCanvasSize();
     const cell = previewCellSize({
         content: visible.length > 0 ? largestSize(visible) : null,
         rows: state.rows,
         cols: state.cols,
-        maxWidth: window.innerWidth * 0.9,
-        maxHeight: window.innerHeight * 0.8
+        maxWidth: available.width,
+        maxHeight: available.height
     });
     return { rows: state.rows, cols: state.cols, cellWidth: cell.width, cellHeight: cell.height };
 }
 
 // Full update: recompute the layout, resize the canvas, redraw and sync the UI.
-// A layout change (new images, grid size, window size) invalidates a running
-// drag's cell index and offsets, so it cancels the drag.
 function render() {
-    state.drag = null;
     grid = computePreviewGrid();
 
     // Size the backing store for the device pixel ratio so it stays sharp on
@@ -83,7 +88,7 @@ function render() {
 
 // Redraw only, for changes that don't affect the layout (a drag moving).
 function draw() {
-    drawGrid(ctx, grid, visibleImages(), state.drag);
+    drawGrid(ctx, grid, model.visibleImages(state), state.drag);
     canvas.classList.toggle('dragging', state.drag !== null);
 }
 
@@ -104,11 +109,12 @@ function showNotice(message) {
     noticeTimer = setTimeout(() => { notice.hidden = true; }, 5000);
 }
 
+const capacityMessage = () => `Please upload a total of up to ${model.capacity(state)} images.`;
+
 // ------------------------------------------------------------------ actions
 
-function setGridSize(rows, cols) {
-    state.rows = clampGridSize(rows);
-    state.cols = clampGridSize(cols);
+function changeGridSize(rows, cols) {
+    model.setGridSize(state, rows, cols);
     render();
 }
 
@@ -125,24 +131,23 @@ async function addFiles(files, { replace }) {
     if (failed > 0) {
         messages.push(`${failed} file(s) could not be loaded as images and were skipped.`);
     }
-    // Re-check after loading: another drop may have filled the grid meanwhile.
-    const overLimit = !replace && state.images.length + loaded.length > maxImages();
-    if (overLimit) {
-        messages.push(`Please upload a total of up to ${maxImages()} images.`);
+    if (loaded.length > 0) {
+        let added = true;
+        if (replace) {
+            model.replaceImages(state, loaded);
+        } else {
+            // appendImages re-checks the capacity: another drop may have
+            // filled the grid while these files were loading.
+            added = model.appendImages(state, loaded);
+        }
+        if (added) render();
+        else messages.push(capacityMessage());
     }
     if (messages.length > 0) showNotice(messages.join(' '));
-    if (loaded.length === 0 || overLimit) return;
-
-    state.images = replace ? loaded : [...state.images, ...loaded];
-    render();
-}
-
-function swapImages(a, b) {
-    [state.images[a], state.images[b]] = [state.images[b], state.images[a]];
 }
 
 async function downloadCombinedImage() {
-    const visible = visibleImages();
+    const visible = model.visibleImages(state);
     if (visible.length === 0) {
         showNotice('Add some images first.');
         return;
@@ -178,7 +183,7 @@ fileInput.addEventListener('change', () => {
     const files = pickImageFiles(fileInput.files);
     // Reset so that selecting the same files again still fires 'change'.
     fileInput.value = '';
-    if (files) addFiles(files.slice(0, maxImages()), { replace: true });
+    if (files) addFiles(files.slice(0, model.capacity(state)), { replace: true });
 });
 
 canvas.addEventListener('dragover', (e) => {
@@ -195,12 +200,21 @@ canvas.addEventListener('drop', (e) => {
     canvas.classList.remove('drag-over');
     const files = pickImageFiles(e.dataTransfer.files);
     if (!files) return;
-    if (state.images.length + files.length > maxImages()) {
-        showNotice(`Please upload a total of up to ${maxImages()} images.`);
+    // Checked up front too, so an oversized drop is refused before loading anything.
+    if (model.exceedsCapacity(state, files.length)) {
+        showNotice(capacityMessage());
         return;
     }
     addFiles(files, { replace: false });
 });
+
+// Files dropped beside the canvas would otherwise make the browser open them,
+// replacing the app (and the arrangement) with the image.
+window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (e.target !== canvas) e.dataTransfer.dropEffect = 'none';
+});
+window.addEventListener('drop', (e) => e.preventDefault());
 
 // ------------------------------------------------------- reorder by dragging
 
@@ -215,7 +229,7 @@ function pointerPosition(e) {
 canvas.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || state.drag) return;
     const p = pointerPosition(e);
-    const index = imageIndexAt(p.x, p.y, visibleImages(), grid);
+    const index = imageIndexAt(p.x, p.y, model.visibleImages(state), grid);
     if (index < 0) return;
 
     e.preventDefault();
@@ -223,43 +237,42 @@ canvas.addEventListener('pointerdown', (e) => {
         // Keep receiving events when the pointer leaves the canvas mid-drag.
         canvas.setPointerCapture(e.pointerId);
     } catch {
-        // Capture is a nicety; dragging within the canvas still works without it.
+        // Capture is a nicety; the window listeners below still end the drag.
     }
     const cell = cellRect(index, grid);
-    state.drag = { index, pointerId: e.pointerId, x: p.x, y: p.y, offsetX: p.x - cell.x, offsetY: p.y - cell.y };
+    model.startDrag(state, { index, pointerId: e.pointerId, x: p.x, y: p.y, offsetX: p.x - cell.x, offsetY: p.y - cell.y });
     draw();
 });
+
+const isDragPointer = (e) => state.drag !== null && e.pointerId === state.drag.pointerId;
 
 // Move/end listeners sit on window: with pointer capture the events bubble up
 // from the canvas, and if capture failed a release outside the canvas still ends the drag.
 window.addEventListener('pointermove', (e) => {
-    if (!state.drag || e.pointerId !== state.drag.pointerId) return;
+    if (!isDragPointer(e)) return;
     const p = pointerPosition(e);
-    state.drag.x = p.x;
-    state.drag.y = p.y;
+    model.moveDrag(state, p.x, p.y);
     draw();
 });
 
-function endDrag(e, commit) {
-    const drag = state.drag;
-    if (!drag || e.pointerId !== drag.pointerId) return;
-    state.drag = null;
-    if (commit) {
-        const target = dropTargetIndex(drag, grid, visibleImages().length);
-        if (target >= 0) swapImages(drag.index, target);
-    }
+window.addEventListener('pointerup', (e) => {
+    if (!isDragPointer(e)) return;
+    const target = dropTargetIndex(state.drag, grid, model.visibleImages(state).length);
+    model.finishDrag(state, target);
     draw();
-}
+});
 
-window.addEventListener('pointerup', (e) => endDrag(e, true));
-window.addEventListener('pointercancel', (e) => endDrag(e, false));
+window.addEventListener('pointercancel', (e) => {
+    if (!isDragPointer(e)) return;
+    model.cancelDrag(state);
+    draw();
+});
 
 // Stop the page from scrolling when a touch starts on an image, but still
 // allow scrolling when it starts on empty space.
 canvas.addEventListener('touchstart', (e) => {
-    const touch = e.touches[0];
-    const p = pointerPosition(touch);
-    if (imageIndexAt(p.x, p.y, visibleImages(), grid) >= 0) {
+    const p = pointerPosition(e.changedTouches[0]);
+    if (imageIndexAt(p.x, p.y, model.visibleImages(state), grid) >= 0) {
         e.preventDefault();
     }
 }, { passive: false });
@@ -267,10 +280,13 @@ canvas.addEventListener('touchstart', (e) => {
 // ------------------------------------------------------------ other controls
 
 downloadBtn.addEventListener('click', downloadCombinedImage);
-steppers.rowsDec.addEventListener('click', () => setGridSize(state.rows - 1, state.cols));
-steppers.rowsInc.addEventListener('click', () => setGridSize(state.rows + 1, state.cols));
-steppers.colsDec.addEventListener('click', () => setGridSize(state.rows, state.cols - 1));
-steppers.colsInc.addEventListener('click', () => setGridSize(state.rows, state.cols + 1));
+steppers.rowsDec.addEventListener('click', () => changeGridSize(state.rows - 1, state.cols));
+steppers.rowsInc.addEventListener('click', () => changeGridSize(state.rows + 1, state.cols));
+steppers.colsDec.addEventListener('click', () => changeGridSize(state.rows, state.cols - 1));
+steppers.colsInc.addEventListener('click', () => changeGridSize(state.rows, state.cols + 1));
+
+// A resize keeps a running drag: its image index stays valid, and the drop
+// target is worked out against the new layout.
 window.addEventListener('resize', render);
 
 // Re-render when the device pixel ratio changes without a resize, e.g. when

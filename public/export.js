@@ -39,11 +39,16 @@ export async function renderGridToBlob(images, rows, cols, type = 'image/png') {
     return null;
 }
 
+// How long the download URL stays valid. Some browsers (iOS Safari) ask the
+// user to confirm a download and only read the URL afterwards, so this is
+// generous; FileSaver.js uses the same delay.
+const DOWNLOAD_URL_LIFETIME_MS = 40_000;
+
 export function saveBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.download = filename;
     link.href = url;
     link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setTimeout(() => URL.revokeObjectURL(url), DOWNLOAD_URL_LIFETIME_MS);
 }

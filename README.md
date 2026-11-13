@@ -32,20 +32,22 @@ Everything lives in `./public`, with no build step:
 
 | File        | Responsibility                                                     |
 |-------------|--------------------------------------------------------------------|
-| `main.js`   | App state, UI wiring and the single `render()` function            |
+| `main.js`   | UI wiring and the single `render()` function                       |
+| `state.js`  | App state and the rules for changing it (pure, unit-tested)        |
 | `layout.js` | Pure layout maths (cell rects, fitting, hit-testing, size limits)  |
 | `render.js` | Drawing the grid onto a canvas (used by preview and export)        |
 | `export.js` | Building and saving the full-resolution combined PNG               |
 | `images.js` | Loading user files into images                                     |
 
-Every interaction updates the `state` object in `main.js` and calls
-`render()`. An image's place in the grid is its index in `state.images`,
-so reordering is just swapping two array entries. The preview and the
+Every interaction changes the state through a transition in `state.js` and
+then calls `render()`. An image's place in the grid is its index in
+`state.images`, so reordering is just swapping two array entries. Any
+transition that changes the images or the grid size ends a running drag. The preview and the
 export share `layout.js`, so the downloaded image matches what you see.
 
 ### Tests
 
-The layout maths has unit tests that run with Node's built-in test runner
+The layout maths and the state rules have unit tests that run with Node's built-in test runner
 (Node 20+):
 
 ```sh
