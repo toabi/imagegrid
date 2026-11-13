@@ -97,4 +97,4 @@ The code was written 99% by GPT4o and Claude 3.5 with minor human modifications.
 Improved in July 2026 with Claude/Opus 4.8.
 
 Refactored into tested modules, bug-fixed and made accessible (WCAG 2.2
-AAA) in November 2026 with Claude Code.
+AAA) in November 2026 with Claude Code/Opus 5.5.
