@@ -129,7 +129,6 @@ function addFiles(files, options) {
         .then(() => loading)
         .then((result) => applyLoadedImages(result, options))
         .catch((error) => console.error(error)); // keep the queue usable after a failure
-    return applyQueue;
 }
 
 // `note` is an optional message from when the files were picked, shown

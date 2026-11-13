@@ -16,12 +16,13 @@ export async function loadImage(file) {
     try {
         // decode() decodes off the main thread, so the first draw doesn't stall.
         await img.decode();
-        return img.naturalWidth > 0 && img.naturalHeight > 0 ? img : null;
     } catch {
-        return null;
+        // Broken files reject, but so do some very large images that did load
+        // (seen in WebKit), so the natural size below decides.
     } finally {
         URL.revokeObjectURL(url);
     }
+    return img.naturalWidth > 0 && img.naturalHeight > 0 ? img : null;
 }
 
 // Loads all files in their original order. Files that fail are left out and counted.
