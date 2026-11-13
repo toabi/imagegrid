@@ -71,3 +71,51 @@ test('moveDrag updates the pointer position only while dragging', () => {
     model.moveDrag(s, 5, 7);
     assert.deepEqual([s.drag.x, s.drag.y], [5, 7]);
 });
+
+test('moveCursor moves by cells and stops at the edges', () => {
+    const s = model.createState({ rows: 2, cols: 3 });
+    model.moveCursor(s, 0, -1);
+    assert.equal(s.cursor, 0);
+    model.moveCursor(s, 1, 2);
+    assert.equal(s.cursor, 5);
+    model.moveCursor(s, 1, 1);
+    assert.equal(s.cursor, 5);
+});
+
+test('activateCell picks up, swaps, puts back and ignores empty cells', () => {
+    const s = model.createState({ rows: 1, cols: 4 });
+    model.replaceImages(s, [img('a'), img('b'), img('c')]);
+
+    assert.equal(model.activateCell(s, 3), 'none');      // empty cell
+    assert.equal(s.selected, null);
+    assert.equal(model.activateCell(s, 0), 'picked');
+    assert.equal(model.activateCell(s, 3), 'none');      // empty: keeps the pick
+    assert.equal(s.selected, 0);
+    assert.equal(model.activateCell(s, 2), 'swapped');
+    assert.deepEqual(names(s), ['c', 'b', 'a']);
+    assert.equal(s.selected, null);
+    assert.equal(s.cursor, 2);
+
+    model.activateCell(s, 1);
+    assert.equal(model.activateCell(s, 1), 'put-back');
+    assert.deepEqual(names(s), ['c', 'b', 'a']);
+});
+
+test('grid and image changes drop the pick and keep the cursor in range', () => {
+    const s = model.createState({ rows: 2, cols: 4 });
+    model.replaceImages(s, [img('a'), img('b')]);
+    model.activateCell(s, 1);
+    s.cursor = 7;
+    model.setGridSize(s, 1, 2);
+    assert.equal(s.selected, null);
+    assert.equal(s.cursor, 1);
+});
+
+test('a drag swap drops a stale pick', () => {
+    const s = model.createState({ rows: 1, cols: 3 });
+    model.replaceImages(s, [img('a'), img('b'), img('c')]);
+    model.activateCell(s, 0);
+    model.startDrag(s, dragOf(1));
+    model.finishDrag(s, 2);
+    assert.equal(s.selected, null);
+});

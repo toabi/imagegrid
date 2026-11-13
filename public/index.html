@@ -242,7 +242,9 @@
                on a small screen scrolls inside this box instead of the page. */
             max-width: 100%;
             overflow-x: auto;
-            margin: 0 0 1.5rem;
+            /* Room for the canvas' focus ring, which the scroll box would clip. */
+            padding: 6px;
+            margin: 0 0 1rem;
         }
 
         #message-container {
@@ -264,6 +266,13 @@
             border: 2px dashed var(--border);
             border-radius: 12px;
             background-color: var(--surface);
+        }
+
+        .help {
+            max-width: 640px;
+            margin: -0.75rem 0 1.5rem;
+            color: var(--muted);
+            text-align: center;
         }
 
         #canvas.dragging {
@@ -308,7 +317,7 @@
 <body>
 <header>
     <h1>Image Grid</h1>
-    <p>Arrange your images in a tidy grid, reorder them by dragging, and download the result.</p>
+    <p>Arrange your images in a tidy grid, reorder them, and download the result.</p>
 </header>
 <div id="toolbar-container">
     <div class="stepper" role="group" aria-labelledby="rowsLabel">
@@ -336,8 +345,14 @@
 <div id="announcer" class="visually-hidden" role="status"></div>
 <div id="canvas-container">
     <div id="message-container">You can also drag and drop images into this area!</div>
-    <canvas id="canvas" role="img" aria-label="Image grid preview. Drop images here; drag an image onto another to swap them."></canvas>
+    <canvas id="canvas" tabindex="0" role="application" aria-label="Image grid" aria-describedby="gridHelp"></canvas>
 </div>
+<p id="gridHelp" class="help">
+    To swap two images, drag one onto the other, or tap or click one and then the other.
+    With the keyboard, move to the grid with Tab, choose a cell with the arrow keys,
+    press Space or Enter to pick up an image and again on another image to swap them.
+    Escape cancels.
+</p>
 <footer>
     <a href="https://github.com/toabi/imagegrid">Source code on GitHub</a>
 </footer>

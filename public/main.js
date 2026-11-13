@@ -6,7 +6,7 @@ import {
 } from './layout.js';
 import * as model from './state.js';
 import { isImageFile, loadImages } from './images.js';
-import { drawGrid } from './render.js';
+import { drawGrid, drawMarkers } from './render.js';
 import { renderGridToBlob, saveBlob } from './export.js';
 
 const canvas = document.getElementById('canvas');
@@ -33,6 +33,9 @@ const VIEWPORT_HEIGHT_SHARE = 0.8;
 // Smallest cell edge in CSS pixels, so each cell is a usable touch target
 // (WCAG 2.5.5); matches --target-size in index.html.
 const MIN_CELL_SIZE = 44;
+// A press that moves less than this (CSS px) before release is a tap, which
+// picks up or swaps images instead of dragging.
+const TAP_DISTANCE = 6;
 
 const state = model.createState();
 
@@ -96,7 +99,23 @@ function render() {
 // Redraw only, for changes that don't affect the layout (a drag moving).
 function draw() {
     drawGrid(ctx, grid, model.visibleImages(state), state.drag);
+    drawMarkers(ctx, grid, {
+        selected: state.selected,
+        cursor: state.cursor,
+        showCursor: document.activeElement === canvas && canvas.matches(':focus-visible'),
+        colors: markerColors()
+    });
     canvas.classList.toggle('dragging', state.drag !== null);
+}
+
+// Marker colours come from the page's colour tokens, so they follow the theme.
+function markerColors() {
+    const css = getComputedStyle(document.documentElement);
+    return {
+        cursor: css.getPropertyValue('--focus').trim(),
+        selected: css.getPropertyValue('--accent').trim(),
+        backing: css.getPropertyValue('--surface').trim()
+    };
 }
 
 function renderSteppers() {
@@ -285,7 +304,10 @@ canvas.addEventListener('pointerdown', (e) => {
         // Capture is a nicety; the window listeners below still end the drag.
     }
     const cell = cellRect(index, grid);
-    model.startDrag(state, { index, pointerId: e.pointerId, x: p.x, y: p.y, offsetX: p.x - cell.x, offsetY: p.y - cell.y });
+    model.startDrag(state, {
+        index, pointerId: e.pointerId, x: p.x, y: p.y, startX: p.x, startY: p.y,
+        offsetX: p.x - cell.x, offsetY: p.y - cell.y
+    });
     draw();
 });
 
@@ -302,7 +324,14 @@ window.addEventListener('pointermove', (e) => {
 
 window.addEventListener('pointerup', (e) => {
     if (!isDragPointer(e)) return;
-    const target = dropTargetIndex(state.drag, grid, model.visibleImages(state).length);
+    const drag = state.drag;
+    if (Math.hypot(drag.x - drag.startX, drag.y - drag.startY) < TAP_DISTANCE) {
+        // A tap: the single-pointer alternative to dragging.
+        model.cancelDrag(state);
+        activateCell(drag.index);
+        return;
+    }
+    const target = dropTargetIndex(drag, grid, model.visibleImages(state).length);
     model.finishDrag(state, target);
     draw();
 });
@@ -321,6 +350,71 @@ canvas.addEventListener('touchstart', (e) => {
         e.preventDefault();
     }
 }, { passive: false });
+
+// ------------------------------------------- keyboard and tap reordering
+
+const imageName = (index) => model.visibleImages(state)[index]?.alt || `image ${index + 1}`;
+
+function describeCell(index) {
+    const row = Math.floor(index / state.cols) + 1;
+    const col = (index % state.cols) + 1;
+    const content = index < model.visibleImages(state).length ? imageName(index) : 'empty';
+    const picked = state.selected === index ? ', picked up' : '';
+    return `Row ${row}, column ${col}: ${content}${picked}.`;
+}
+
+// Picks up / swaps / puts back the image at `index` and says what happened.
+function activateCell(index) {
+    const picked = state.selected;
+    const result = model.activateCell(state, index);
+    const messages = {
+        picked: `Picked up ${imageName(index)}. Move to another image and press Space to swap, or Escape to cancel.`,
+        swapped: picked !== null && `Swapped ${imageName(index)} and ${imageName(picked)}.`,
+        'put-back': `Put back ${imageName(index)}.`,
+        none: picked !== null
+            ? 'This cell is empty. Choose another image to swap with.'
+            : 'This cell is empty.'
+    };
+    announce(messages[result]);
+    draw();
+}
+
+// Scrolls the canvas' box so the cursor cell is visible when the grid is
+// wider than the screen.
+function keepCursorVisible() {
+    const box = canvas.parentElement;
+    const cell = cellRect(state.cursor, grid);
+    if (cell.x < box.scrollLeft) box.scrollLeft = cell.x;
+    else if (cell.x + cell.width > box.scrollLeft + box.clientWidth) {
+        box.scrollLeft = cell.x + cell.width - box.clientWidth;
+    }
+}
+
+const ARROW_MOVES = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+
+canvas.addEventListener('keydown', (e) => {
+    if (ARROW_MOVES[e.key]) {
+        model.moveCursor(state, ...ARROW_MOVES[e.key]);
+        keepCursorVisible();
+        announce(describeCell(state.cursor));
+        draw();
+    } else if (e.key === ' ' || e.key === 'Enter') {
+        activateCell(state.cursor);
+    } else if (e.key === 'Escape' && state.selected !== null) {
+        model.clearSelection(state);
+        announce('Swap cancelled.');
+        draw();
+    } else {
+        return;
+    }
+    e.preventDefault();
+});
+
+canvas.addEventListener('focus', () => {
+    keepCursorVisible();
+    draw();
+});
+canvas.addEventListener('blur', draw);
 
 // ------------------------------------------------------------ other controls
 

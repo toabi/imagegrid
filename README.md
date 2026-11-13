@@ -1,8 +1,10 @@
 # Image Grid
 
-Arranges pictures in a configurable grid. Use the up/down arrows in the
-header to choose the number of rows and columns (1–8 each, defaulting to a
-2×4 grid). The maximum number of images equals rows × columns.
+Arranges pictures in a configurable grid. Use the Rows and Columns buttons
+to choose the grid size (1–8 each, defaulting to a 2×4 grid). The maximum
+number of images equals rows × columns. Images are reordered by dragging,
+by tapping two images, or with the keyboard (arrow keys, then Space or
+Enter to pick up and swap). The page aims for WCAG 2.2 AAA.
 
 ## Usage
 

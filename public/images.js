@@ -22,6 +22,8 @@ export async function loadImage(file) {
     } finally {
         URL.revokeObjectURL(url);
     }
+    // The file name identifies the image in screen-reader announcements.
+    img.alt = file.name;
     return img.naturalWidth > 0 && img.naturalHeight > 0 ? img : null;
 }
 

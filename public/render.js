@@ -7,6 +7,37 @@ export function drawFitted(ctx, img, box) {
     ctx.drawImage(img, r.x, r.y, r.width, r.height);
 }
 
+// Outlines `box`, `inset` px inside its edge, with a ring that is visible on
+// any image: a coloured ring on a contrasting backing ring. `dashed`
+// distinguishes rings by shape, not colour alone.
+function drawRing(ctx, box, { inset, color, backing, dashed = false }) {
+    const x = box.x + inset;
+    const y = box.y + inset;
+    const width = box.width - 2 * inset;
+    const height = box.height - 2 * inset;
+    ctx.save();
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = backing;
+    ctx.strokeRect(x, y, width, height);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = color;
+    ctx.setLineDash(dashed ? [8, 5] : []);
+    ctx.strokeRect(x, y, width, height);
+    ctx.restore();
+}
+
+// Preview-only markers: a dashed outer ring around the picked-up image and a
+// solid inner ring around the keyboard cursor (only while the grid has
+// focus), so both stay visible when they are on the same cell.
+export function drawMarkers(ctx, grid, { selected, cursor, showCursor, colors }) {
+    if (selected !== null) {
+        drawRing(ctx, cellRect(selected, grid), { inset: 3, color: colors.selected, backing: colors.backing, dashed: true });
+    }
+    if (showCursor) {
+        drawRing(ctx, cellRect(cursor, grid), { inset: 9, color: colors.cursor, backing: colors.backing });
+    }
+}
+
 // Draws every image into its cell. While dragging, the dragged image is drawn
 // last, following the pointer, and its own cell is left empty.
 export function drawGrid(ctx, grid, images, drag = null) {
