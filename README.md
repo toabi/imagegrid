@@ -48,6 +48,18 @@ transition that changes the images or the grid size ends a running drag.
 The preview and the export share `layout.js`, so the downloaded image has
 the same layout as the preview (empty space is transparent in the PNG).
 
+### Accessibility
+
+The page targets WCAG 2.2 AAA. Things to keep when changing it:
+
+- Colours come from the tokens at the top of `index.html`: text pairs are
+  at least 7:1, borders, focus ring and markers at least 3:1, in both themes.
+- Interactive targets are at least 44×44 px (`--target-size`, and
+  `MIN_CELL_SIZE` for grid cells).
+- Everything works with the keyboard; reordering also works by tapping two
+  images. Changes are announced through the `#announcer` live region.
+- Notices stay until dismissed; nothing depends on a timeout.
+
 ### Tests
 
 The layout maths and the state rules have unit tests that run with Node's

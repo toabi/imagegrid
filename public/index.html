@@ -66,8 +66,15 @@
 
         header {
             text-align: center;
-            max-width: 640px;
+            max-width: 65ch;
             margin-bottom: 1.5rem;
+        }
+
+        main {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 100%;
         }
 
         header h1 {
@@ -83,6 +90,7 @@
         }
 
         #toolbar-container {
+            max-width: 100%;
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
@@ -134,28 +142,15 @@
             font-variant-numeric: tabular-nums;
         }
 
-        .file-field {
+        /* The native file input is visually hidden but stays focusable; its
+           label is the visible button, which (unlike the native widget) wraps
+           at narrow widths and with increased text spacing. */
+        .file-button {
             display: inline-flex;
-            flex-wrap: wrap;
-            justify-content: center;
             align-items: center;
-            gap: 0.5rem;
-            max-width: 100%;
-            font-weight: 600;
-        }
-
-        #fileInput {
-            max-width: 100%;
-            font-size: 1rem;
-            font-weight: 400;
-            color: var(--text);
-        }
-
-        #fileInput::file-selector-button {
             min-height: var(--target-size);
             padding: 0.5rem 1rem;
-            margin-right: 0.75rem;
-            font-size: 1rem;
+            font-weight: 600;
             color: var(--text);
             background-color: var(--surface);
             border: 1px solid var(--border);
@@ -163,8 +158,13 @@
             cursor: pointer;
         }
 
-        #fileInput::file-selector-button:hover {
+        .file-button:hover {
             border-color: var(--accent);
+        }
+
+        #fileInput:focus-visible + .file-button {
+            outline: 3px solid var(--focus);
+            outline-offset: 2px;
         }
 
         #downloadBtn {
@@ -192,7 +192,7 @@
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            max-width: 640px;
+            max-width: 65ch;
             margin: 0 0 1rem;
             padding: 0.25rem 0.25rem 0.25rem 1rem;
             border: 2px solid var(--accent);
@@ -269,7 +269,8 @@
         }
 
         .help {
-            max-width: 640px;
+            /* At most ~65 characters per line (WCAG 1.4.8 asks for <= 80). */
+            max-width: 65ch;
             margin: -0.75rem 0 1.5rem;
             color: var(--muted);
             text-align: center;
@@ -319,6 +320,7 @@
     <h1>Image Grid</h1>
     <p>Arrange your images in a tidy grid, reorder them, and download the result.</p>
 </header>
+<main>
 <div id="toolbar-container">
     <div class="stepper" role="group" aria-labelledby="rowsLabel">
         <span id="rowsLabel" class="stepper-label">Rows</span>
@@ -332,9 +334,8 @@
         <span id="colsValue" class="stepper-value"></span>
         <button id="colsInc" type="button" aria-label="More columns">+</button>
     </div>
-    <label class="file-field" for="fileInput">Add images
-        <input type="file" id="fileInput" multiple accept="image/*">
-    </label>
+    <input type="file" id="fileInput" class="visually-hidden" multiple accept="image/*">
+    <label class="file-button" for="fileInput">Add images…</label>
     <button id="downloadBtn" type="button">Download Combined Image</button>
 </div>
 <div id="notice" hidden>
@@ -353,6 +354,7 @@
     press Space or Enter to pick up an image and again on another image to swap them.
     Escape cancels.
 </p>
+</main>
 <footer>
     <a href="https://github.com/toabi/imagegrid">Source code on GitHub</a>
 </footer>

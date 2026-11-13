@@ -146,7 +146,12 @@ function showNotice(message) {
     announce(message);
 }
 
-noticeClose.addEventListener('click', () => { notice.hidden = true; });
+// Hiding the notice removes the focused Dismiss button, so focus moves on to
+// the grid, the next control in reading order, instead of the page body.
+noticeClose.addEventListener('click', () => {
+    notice.hidden = true;
+    canvas.focus();
+});
 
 const capacityMessage = () => `Please upload a total of up to ${model.capacity(state)} images.`;
 
@@ -187,8 +192,13 @@ function applyLoadedImages({ loaded, failed }, { replace, note }) {
             // filled the grid while these files were loading.
             added = model.appendImages(state, loaded);
         }
-        if (added) render();
-        else messages.push(capacityMessage());
+        if (added) {
+            render();
+            // Stands in for the native file input's "N files" text, which is hidden.
+            if (messages.length === 0) announce(`${plural(loaded.length, 'image')} added.`);
+        } else {
+            messages.push(capacityMessage());
+        }
     }
     if (messages.length > 0) showNotice(messages.join(' '));
 }
@@ -266,16 +276,15 @@ canvas.addEventListener('drop', (e) => {
 });
 
 // Files dropped anywhere else on the page would otherwise make the browser open
-// them, replacing the app (and the arrangement) with the image. The canvas and
-// the file input handle their own drops.
-const acceptsDrops = (target) => target === canvas || target === fileInput;
+// them, replacing the app (and the arrangement) with the image. The canvas
+// handles its own drops.
 window.addEventListener('dragover', (e) => {
-    if (acceptsDrops(e.target)) return;
+    if (e.target === canvas) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'none';
 });
 window.addEventListener('drop', (e) => {
-    if (!acceptsDrops(e.target)) e.preventDefault();
+    if (e.target !== canvas) e.preventDefault();
 });
 
 // ------------------------------------------------------- reorder by dragging
@@ -366,16 +375,22 @@ function describeCell(index) {
 // Picks up / swaps / puts back the image at `index` and says what happened.
 function activateCell(index) {
     const picked = state.selected;
-    const result = model.activateCell(state, index);
-    const messages = {
-        picked: `Picked up ${imageName(index)}. Move to another image and press Space to swap, or Escape to cancel.`,
-        swapped: picked !== null && `Swapped ${imageName(index)} and ${imageName(picked)}.`,
-        'put-back': `Put back ${imageName(index)}.`,
-        none: picked !== null
-            ? 'This cell is empty. Choose another image to swap with.'
-            : 'This cell is empty.'
-    };
-    announce(messages[result]);
+    switch (model.activateCell(state, index)) {
+        case 'picked':
+            announce(`Picked up ${imageName(index)}. Move to another image and press Space to swap, or Escape to cancel.`);
+            break;
+        case 'swapped':
+            announce(`Swapped ${imageName(index)} and ${imageName(picked)}.`);
+            break;
+        case 'put-back':
+            announce(`Put back ${imageName(index)}.`);
+            break;
+        case 'none':
+            announce(picked !== null
+                ? 'This cell is empty. Choose another image to swap with.'
+                : 'This cell is empty.');
+            break;
+    }
     draw();
 }
 
