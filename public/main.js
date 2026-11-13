@@ -28,7 +28,7 @@ const steppers = {
 const VIEWPORT_WIDTH_SHARE = 0.9;
 const VIEWPORT_HEIGHT_SHARE = 0.8;
 
-const state = model.createState({ rows: 2, cols: 4 });
+const state = model.createState();
 
 // Preview layout from the last render, in CSS pixels. Used for hit-testing.
 let grid = { rows: state.rows, cols: state.cols, cellWidth: 0, cellHeight: 0 };
@@ -118,16 +118,26 @@ function changeGridSize(rows, cols) {
     render();
 }
 
-// Bumped by every replacing load, so loads that started before it are dropped
-// when they finish instead of overwriting the newer selection.
-let replaceGeneration = 0;
+// Loads run in parallel but are applied in the order they were started, so the
+// newest file selection wins, and a drop made while a selection is still
+// loading lands on top of that selection instead of being overwritten by it.
+let applyQueue = Promise.resolve();
 
-async function addFiles(files, { replace }) {
-    const generation = replace ? ++replaceGeneration : replaceGeneration;
-    const { loaded, failed } = await loadImages(files);
-    if (generation !== replaceGeneration) return;
+function addFiles(files, options) {
+    const loading = loadImages(files);
+    applyQueue = applyQueue
+        .then(() => loading)
+        .then((result) => applyLoadedImages(result, options))
+        .catch((error) => console.error(error)); // keep the queue usable after a failure
+    return applyQueue;
+}
 
+// `leftOut` counts files not loaded at all because the grid can't hold them.
+function applyLoadedImages({ loaded, failed }, { replace, leftOut = 0 }) {
     const messages = [];
+    if (leftOut > 0) {
+        messages.push(`The grid holds ${model.capacity(state)} images, so ${leftOut} file(s) were left out.`);
+    }
     if (failed > 0) {
         messages.push(`${failed} file(s) could not be loaded as images and were skipped.`);
     }
@@ -183,7 +193,9 @@ fileInput.addEventListener('change', () => {
     const files = pickImageFiles(fileInput.files);
     // Reset so that selecting the same files again still fires 'change'.
     fileInput.value = '';
-    if (files) addFiles(files.slice(0, model.capacity(state)), { replace: true });
+    if (!files) return;
+    const kept = files.slice(0, model.capacity(state));
+    addFiles(kept, { replace: true, leftOut: files.length - kept.length });
 });
 
 canvas.addEventListener('dragover', (e) => {
@@ -208,13 +220,18 @@ canvas.addEventListener('drop', (e) => {
     addFiles(files, { replace: false });
 });
 
-// Files dropped beside the canvas would otherwise make the browser open them,
-// replacing the app (and the arrangement) with the image.
+// Files dropped anywhere else on the page would otherwise make the browser open
+// them, replacing the app (and the arrangement) with the image. The canvas and
+// the file input handle their own drops.
+const acceptsDrops = (target) => target === canvas || target === fileInput;
 window.addEventListener('dragover', (e) => {
+    if (acceptsDrops(e.target)) return;
     e.preventDefault();
-    if (e.target !== canvas) e.dataTransfer.dropEffect = 'none';
+    e.dataTransfer.dropEffect = 'none';
 });
-window.addEventListener('drop', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => {
+    if (!acceptsDrops(e.target)) e.preventDefault();
+});
 
 // ------------------------------------------------------- reorder by dragging
 

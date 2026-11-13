@@ -8,7 +8,9 @@ export function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
 
+// Clamps a grid dimension to GRID_MIN..GRID_MAX; anything non-numeric becomes GRID_MIN.
 export function clampGridSize(n) {
+    if (!Number.isFinite(n)) return GRID_MIN;
     return clamp(Math.round(n), GRID_MIN, GRID_MAX);
 }
 

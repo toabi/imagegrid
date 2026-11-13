@@ -11,6 +11,8 @@ test('clampGridSize keeps values within 1..8', () => {
     assert.equal(clampGridSize(0), 1);
     assert.equal(clampGridSize(9), 8);
     assert.equal(clampGridSize(3), 3);
+    assert.equal(clampGridSize(NaN), 1);
+    assert.equal(clampGridSize(undefined), 1);
 });
 
 test('largestSize takes max width and height independently', () => {
