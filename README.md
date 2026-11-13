@@ -23,6 +23,37 @@ python3 -m http.server --bind 0.0.0.0 8888
 Then open <http://localhost:8888/> in your browser. The `--bind 0.0.0.0`
 option also makes it reachable from other devices on your network.
 
+The page uses ES modules, so it has to be served over HTTP; opening
+`index.html` directly from disk (`file://`) won't work.
+
+## Code structure
+
+Everything lives in `./public`, with no build step:
+
+| File        | Responsibility                                                     |
+|-------------|--------------------------------------------------------------------|
+| `main.js`   | App state, UI wiring and the single `render()` function            |
+| `layout.js` | Pure layout maths (cell rects, fitting, hit-testing, size limits)  |
+| `render.js` | Drawing the grid onto a canvas (used by preview and export)        |
+| `export.js` | Building and saving the full-resolution combined PNG               |
+| `images.js` | Loading user files into images                                     |
+
+Every interaction updates the `state` object in `main.js` and calls
+`render()`. An image's place in the grid is its index in `state.images`,
+so reordering is just swapping two array entries. The preview and the
+export share `layout.js`, so the downloaded image matches what you see.
+
+### Tests
+
+The layout maths has unit tests that run with Node's built-in test runner
+(Node 20+):
+
+```sh
+npm test
+```
+
+GitHub Actions runs them before every deploy.
+
 ## Notes
 
 The code was written 99% by GPT4o and Claude 3.5 with minor human modifications.

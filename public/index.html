@@ -174,12 +174,33 @@
             pointer-events: none;
         }
 
+        #notice {
+            max-width: 640px;
+            margin: 0 0 1rem;
+            padding: 0.6rem 0.9rem;
+            border: 1px solid var(--accent);
+            border-radius: 8px;
+            background-color: var(--surface);
+            color: var(--text);
+            text-align: center;
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+
         #canvas {
+            /* The canvas' CSS size is set from JS to exactly the grid size. */
+            box-sizing: content-box;
             border: 2px dashed var(--border);
             border-radius: 12px;
             background-color: var(--surface);
             transition: border-color 0.3s ease;
             cursor: pointer;
+        }
+
+        #canvas.dragging {
+            cursor: grabbing;
         }
 
         #canvas.drag-over {
@@ -212,14 +233,15 @@
     <p>Arrange your images in a tidy
         <span class="stepper">
             <button id="rowsDec" type="button" aria-label="Decrease rows">&#9660;</button>
-            <span id="rowsValue" class="stepper-value">2</span>
+            <span id="rowsValue" class="stepper-value"></span>
             <button id="rowsInc" type="button" aria-label="Increase rows">&#9650;</button>
         </span>&times;<span class="stepper">
             <button id="colsDec" type="button" aria-label="Decrease columns">&#9660;</button>
-            <span id="colsValue" class="stepper-value">4</span>
+            <span id="colsValue" class="stepper-value"></span>
             <button id="colsInc" type="button" aria-label="Increase columns">&#9650;</button>
         </span> grid, reorder them by dragging, and download the result.</p>
 </header>
+<div id="notice" role="status" hidden></div>
 <div id="toolbar-container">
     <input type="file" id="fileInput" multiple accept="image/*">
     <button id="downloadBtn">Download Combined Image</button>
@@ -231,6 +253,6 @@
 <footer>
     <a href="https://github.com/toabi/imagegrid">Source</a>
 </footer>
-<script src="script.js"></script>
+<script type="module" src="main.js"></script>
 </body>
 </html>
