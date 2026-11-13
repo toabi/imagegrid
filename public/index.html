@@ -233,11 +233,11 @@
     <p>Arrange your images in a tidy
         <span class="stepper">
             <button id="rowsDec" type="button" aria-label="Decrease rows">&#9660;</button>
-            <span id="rowsValue" class="stepper-value"></span>
+            <span id="rowsValue" class="stepper-value" aria-live="polite"></span>
             <button id="rowsInc" type="button" aria-label="Increase rows">&#9650;</button>
         </span>&times;<span class="stepper">
             <button id="colsDec" type="button" aria-label="Decrease columns">&#9660;</button>
-            <span id="colsValue" class="stepper-value"></span>
+            <span id="colsValue" class="stepper-value" aria-live="polite"></span>
             <button id="colsInc" type="button" aria-label="Increase columns">&#9650;</button>
         </span> grid, reorder them by dragging, and download the result.</p>
 </header>
@@ -248,7 +248,7 @@
 </div>
 <div id="canvas-container">
     <div id="message-container">You can also drag and drop images into this area!</div>
-    <canvas id="canvas"></canvas>
+    <canvas id="canvas" role="img" aria-label="Image grid preview. Drop images here; drag an image onto another to swap them."></canvas>
 </div>
 <footer>
     <a href="https://github.com/toabi/imagegrid">Source</a>

@@ -132,12 +132,10 @@ function addFiles(files, options) {
     return applyQueue;
 }
 
-// `leftOut` counts files not loaded at all because the grid can't hold them.
-function applyLoadedImages({ loaded, failed }, { replace, leftOut = 0 }) {
-    const messages = [];
-    if (leftOut > 0) {
-        messages.push(`The grid holds ${model.capacity(state)} images, so ${leftOut} file(s) were left out.`);
-    }
+// `note` is an optional message from when the files were picked, shown
+// together with any messages about the load itself.
+function applyLoadedImages({ loaded, failed }, { replace, note }) {
+    const messages = note ? [note] : [];
     if (failed > 0) {
         messages.push(`${failed} file(s) could not be loaded as images and were skipped.`);
     }
@@ -194,8 +192,12 @@ fileInput.addEventListener('change', () => {
     // Reset so that selecting the same files again still fires 'change'.
     fileInput.value = '';
     if (!files) return;
-    const kept = files.slice(0, model.capacity(state));
-    addFiles(kept, { replace: true, leftOut: files.length - kept.length });
+    const capacity = model.capacity(state);
+    const leftOut = files.length - capacity;
+    addFiles(files.slice(0, capacity), {
+        replace: true,
+        note: leftOut > 0 ? `The grid holds ${capacity} images, so ${leftOut} file(s) were left out.` : null
+    });
 });
 
 canvas.addEventListener('dragover', (e) => {

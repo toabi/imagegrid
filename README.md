@@ -42,13 +42,14 @@ Everything lives in `./public`, with no build step:
 Every interaction changes the state through a transition in `state.js` and
 then calls `render()`. An image's place in the grid is its index in
 `state.images`, so reordering is just swapping two array entries. Any
-transition that changes the images or the grid size ends a running drag. The preview and the
-export share `layout.js`, so the downloaded image matches what you see.
+transition that changes the images or the grid size ends a running drag.
+The preview and the export share `layout.js`, so the downloaded image
+matches what you see.
 
 ### Tests
 
-The layout maths and the state rules have unit tests that run with Node's built-in test runner
-(Node 20+):
+The layout maths and the state rules have unit tests that run with Node's
+built-in test runner (Node 20+):
 
 ```sh
 npm test
