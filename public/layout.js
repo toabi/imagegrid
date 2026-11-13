@@ -70,6 +70,15 @@ export function cellIndexAt(x, y, grid) {
     return row * grid.cols + col;
 }
 
+// Cell the dragged image lands in, judged by the centre of its cell-sized box,
+// or -1 when the drop shouldn't move anything (its own cell or an empty cell).
+export function dropTargetIndex(drag, grid, imageCount) {
+    const centreX = drag.x - drag.offsetX + grid.cellWidth / 2;
+    const centreY = drag.y - drag.offsetY + grid.cellHeight / 2;
+    const target = cellIndexAt(centreX, centreY, grid);
+    return target !== drag.index && target < imageCount ? target : -1;
+}
+
 // Index of the image drawn under (x, y), or -1 if the point is on empty space
 // (outside the grid, in an empty cell, or in the letterbox around an image).
 export function imageIndexAt(x, y, images, grid) {

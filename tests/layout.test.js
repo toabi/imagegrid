@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     clampGridSize, largestSize, cellRect, fitRect, previewCellSize,
-    cellIndexAt, imageIndexAt, limitScale
+    cellIndexAt, dropTargetIndex, imageIndexAt, limitScale
 } from '../public/layout.js';
 
 const grid = { rows: 2, cols: 4, cellWidth: 100, cellHeight: 50 };
@@ -41,6 +41,16 @@ test('cellIndexAt clamps points outside the grid to edge cells', () => {
     assert.equal(cellIndexAt(150, 10, grid), 1);
     assert.equal(cellIndexAt(-20, 70, grid), 4);
     assert.equal(cellIndexAt(9999, 9999, grid), 7);
+});
+
+test('dropTargetIndex uses the centre of the dragged cell box', () => {
+    // Dragging image 0 (grabbed at its cell's centre) to the middle of cell 1.
+    const drag = (x, y) => ({ index: 0, x, y, offsetX: 50, offsetY: 25 });
+    assert.equal(dropTargetIndex(drag(150, 25), grid, 3), 1);
+    assert.equal(dropTargetIndex(drag(95, 25), grid, 3), -1);              // centre still in cell 0
+    assert.equal(dropTargetIndex(drag(105, 25), grid, 3), 1);               // just past the edge
+    assert.equal(dropTargetIndex(drag(350, 75), grid, 3), -1);              // empty cell 7
+    assert.equal(dropTargetIndex(drag(150, -500), grid, 3), 1);             // above the grid clamps to row 0
 });
 
 test('imageIndexAt only hits the drawn image area', () => {
