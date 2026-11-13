@@ -1,10 +1,23 @@
 # Image Grid
 
-Arranges pictures in a configurable grid. Use the Rows and Columns buttons
-to choose the grid size (1–8 each, defaulting to a 2×4 grid). The maximum
-number of images equals rows × columns. Images are reordered by dragging,
-by tapping two images, or with the keyboard (arrow keys, then Space or
-Enter to pick up and swap). The page aims for WCAG 2.2 AAA.
+Arranges pictures in a configurable grid and downloads the result as one
+PNG. Everything happens in the browser; images are never uploaded.
+
+- **Grid size:** the Rows and Columns buttons choose 1–8 each (default
+  2×4). The grid holds rows × columns images; images that no longer fit
+  after shrinking the grid are kept and come back when it grows again.
+- **Adding images:** "Add images…" replaces the current images, dropping
+  files onto the grid adds to them.
+- **Reordering:** drag an image onto another, tap or click two images one
+  after the other, or use the keyboard (Tab to the grid, arrow keys to
+  choose a cell, Space or Enter to pick up an image and again to swap,
+  Escape to cancel).
+- **Download:** the PNG uses the original resolution, with each cell as
+  large as the largest image. Empty space is transparent. If the result
+  would exceed the browser's canvas size limit, it is scaled down and a
+  notice says so.
+
+The page aims for WCAG 2.2 AAA (see [Accessibility](#accessibility)).
 
 ## Usage
 
@@ -34,19 +47,24 @@ Everything lives in `./public`, with no build step:
 
 | File        | Responsibility                                                     |
 |-------------|--------------------------------------------------------------------|
-| `main.js`   | UI wiring and the single `render()` function                       |
+| `main.js`   | UI wiring (pointer, keyboard, files), notices, `render()`          |
 | `state.js`  | App state and the rules for changing it (pure, unit-tested)        |
 | `layout.js` | Pure layout maths (cell rects, fitting, hit-testing, size limits)  |
 | `render.js` | Drawing the grid onto a canvas (used by preview and export)        |
 | `export.js` | Building and saving the full-resolution combined PNG               |
 | `images.js` | Loading user files into images                                     |
 
+Unit tests live in `./tests`; `package.json` only exists to run them.
+
 Every interaction changes the state through a transition in `state.js` and
-then calls `render()`. An image's place in the grid is its index in
-`state.images`, so reordering is just swapping two array entries. Any
-transition that changes the images or the grid size ends a running drag.
+then calls `render()` (or just `draw()` while a drag moves). An image's
+place in the grid is its index in `state.images`, so reordering is just
+swapping two array entries. Any transition that changes the images or the
+grid size ends a running drag and drops a picked-up image, since both refer
+to images by index.
+
 The preview and the export share `layout.js`, so the downloaded image has
-the same layout as the preview (empty space is transparent in the PNG).
+the same layout as the preview.
 
 ### Accessibility
 
@@ -62,17 +80,21 @@ The page targets WCAG 2.2 AAA. Things to keep when changing it:
 
 ### Tests
 
-The layout maths and the state rules have unit tests that run with Node's
-built-in test runner (Node 20+):
+The layout maths, the state rules and the file-type check have unit tests
+that run with Node's built-in test runner (Node 20+, no dependencies):
 
 ```sh
 npm test
 ```
 
-GitHub Actions runs them before every deploy.
+GitHub Actions runs them on pull requests and before every deploy to
+GitHub Pages; a failing test stops the deploy.
 
 ## Notes
 
 The code was written 99% by GPT4o and Claude 3.5 with minor human modifications.
 
 Improved in July 2026 with Claude/Opus 4.8.
+
+Refactored into tested modules, bug-fixed and made accessible (WCAG 2.2
+AAA) in November 2026 with Claude Code.
