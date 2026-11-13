@@ -246,7 +246,9 @@ function pointerPosition(e) {
 }
 
 canvas.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0 || state.drag) return;
+    // Another pointer is already dragging. (The same pointer pressing again means
+    // its earlier release was missed, so that drag is simply replaced.)
+    if (e.button !== 0 || (state.drag && state.drag.pointerId !== e.pointerId)) return;
     const p = pointerPosition(e);
     const index = imageIndexAt(p.x, p.y, model.visibleImages(state), grid);
     if (index < 0) return;

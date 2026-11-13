@@ -43,8 +43,8 @@ Every interaction changes the state through a transition in `state.js` and
 then calls `render()`. An image's place in the grid is its index in
 `state.images`, so reordering is just swapping two array entries. Any
 transition that changes the images or the grid size ends a running drag.
-The preview and the export share `layout.js`, so the downloaded image
-matches what you see.
+The preview and the export share `layout.js`, so the downloaded image has
+the same layout as the preview (empty space is transparent in the PNG).
 
 ### Tests
 
